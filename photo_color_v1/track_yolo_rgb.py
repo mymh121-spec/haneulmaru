@@ -7,7 +7,9 @@ import json
 import math
 from pathlib import Path
 import sys
+import time
 
+from drone_coordinates import NorthCoordinateSession
 
 class RGBTracker:
     """One instance per video/camera. update() accepts an OpenCV BGR frame.
@@ -91,6 +93,13 @@ def main():
     parser.add_argument("--show", action="store_true", help="외부 OpenCV 창 표시; Q로 종료")
     parser.add_argument("--save-video", type=Path, help="박스/ID/RGB가 표시된 새 mp4 파일")
     parser.add_argument("--jsonl", type=Path, help="프레임별 결과를 새 JSONL 파일에 저장")
+    parser.add_argument("--coordinate-config", type=Path, default=Path(__file__).with_name("drone_coordinate_config.json"), help="시작 방향을 북쪽으로 잡는 시스템 좌표 설정")
+    parser.add_argument("--no-system-coordinates", action="store_true", help="기존 탐지 결과만 출력")
+    pose_input = parser.add_mutually_exclusive_group()
+    pose_input.add_argument("--pose-json", type=Path, help="다른 코드가 갱신하는 heading_deg/pitch_deg/roll_deg/timestamp_ms JSON")
+    pose_input.add_argument("--imu-host-url", help="NU40 실행 창의 PC 주소 (#연결키 포함); 화면을 열 필요 없음")
+    parser.add_argument("--imu-model", type=Path, default=Path(__file__).resolve().parents[1] / "+imu data" / "nu40-imu-direction-training(1).json")
+    parser.add_argument("--live-source", action="store_true", help="source가 녹화 파일이 아닌 실시간 카메라 스트림임을 지정")
     args = parser.parse_args()
     if args.imgsz < 32 or not 0.1 <= args.color_conf <= 1:
         parser.error("imgsz >= 32 and 0.1 <= color-conf <= 1 are required")
@@ -101,6 +110,22 @@ def main():
         parser.error("--save-video requires a .mp4 path")
     if args.save_video and args.jsonl and args.save_video.resolve() == args.jsonl.resolve():
         parser.error("Video and JSONL output paths must differ")
+    if args.no_system_coordinates and (args.pose_json or args.imu_host_url):
+        parser.error("자세 입력은 시스템 좌표를 켠 상태에서 사용하세요")
+    # Never allow an output stream to replace a pose/config input.
+    inputs = [p.resolve() for p in (args.pose_json, args.coordinate_config, args.imu_model) if p]
+    if any(p and p.resolve() in inputs for p in (args.jsonl, args.save_video)):
+        parser.error("결과 파일과 입력 설정/자세 파일 경로가 겹칩니다")
+    coordinate_session = None
+    pose_poller = None
+    if not args.no_system_coordinates:
+        config = json.loads(args.coordinate_config.read_text(encoding="utf-8"))
+        if config.get("coordinate_system") != "ENU" or config.get("north_reference") != "initial_camera_heading_assumed":
+            parser.error("ENU / initial_camera_heading_assumed 설정을 사용하세요")
+        coordinate_session = NorthCoordinateSession(config["projection"])
+        if args.imu_host_url:
+            from coordinate_imu import ImuPosePoller
+            pose_poller = ImuPosePoller(args.imu_host_url, json.loads(args.imu_model.read_text(encoding="utf-8")))
     import cv2
     tracker = RGBTracker(args.weights, args.tracker, args.device, args.imgsz, color_conf=args.color_conf)
     source = int(args.source) if args.source.isdecimal() else args.source
@@ -111,6 +136,15 @@ def main():
     try:
         if not cap.isOpened():
             raise RuntimeError("영상/카메라를 열 수 없습니다.")
+        if pose_poller:
+            if (not args.source.isdecimal() and not args.live_source) or Path(args.source).is_file():
+                raise ValueError("실시간 IMU는 카메라 번호 또는 --live-source 스트림에 연결하세요. 녹화 영상에는 촬영 당시 자세를 사용해야 합니다.")
+            pose_poller.start()
+            wait_until = time.monotonic() + 8
+            while not pose_poller.snapshot()["valid"]:
+                if time.monotonic() >= wait_until:
+                    raise RuntimeError("NU40 자세를 받을 수 없습니다. 서버와 PC 연결 주소를 확인하세요.")
+                time.sleep(0.05)
         stream = args.jsonl.open("x", encoding="utf-8") if args.jsonl else sys.stdout
         fps = cap.get(cv2.CAP_PROP_FPS)
         if not math.isfinite(fps) or fps <= 0:
@@ -122,8 +156,30 @@ def main():
                     raise RuntimeError("읽을 수 있는 영상 프레임이 없습니다.")
                 break
             count += 1
+            captured_at_ms = round(time.time() * 1000)
+            pose = {"heading_deg": 0, "pitch_deg": 0, "roll_deg": 0, "valid": True,
+                    "source": "fixed_camera_assumed", "quality": "camera_rotation_not_measured"}
+            if pose_poller:
+                # Capture pose before inference, so inference time cannot rotate
+                # the observation into a newer camera orientation.
+                pose = pose_poller.snapshot()
+            elif args.pose_json:
+                try:
+                    pose = json.loads(args.pose_json.read_text(encoding="utf-8"))
+                    NorthCoordinateSession._validate_pose(pose)
+                    stamp = pose.get("timestamp_ms")
+                    pose["valid"] = (pose.get("valid", True) is True and type(stamp) in (int, float)
+                                     and math.isfinite(stamp) and abs(captured_at_ms - stamp) <= 350)
+                    pose.setdefault("source", "external_pose_json")
+                except (OSError, ValueError, TypeError):
+                    pose = {"heading_deg": 0, "pitch_deg": 0, "roll_deg": 0,
+                            "valid": False, "source": "external_pose_unavailable"}
             tracks = tracker.update(frame)
-            stream.write(json.dumps({"frame": count, "tracks": tracks}, ensure_ascii=False) + "\n")
+            packet = {"frame": count, "tracks": tracks}
+            if coordinate_session:
+                packet.update(captured_at_ms=captured_at_ms, image_size_px=[frame.shape[1], frame.shape[0]])
+                packet["system_coordinates"] = coordinate_session.record(tracks, frame.shape[1], frame.shape[0], pose, captured_at_ms)
+            stream.write(json.dumps(packet, ensure_ascii=False, allow_nan=False) + "\n")
             stream.flush()
             if args.show or args.save_video:
                 canvas = draw_tracks(frame, tracks)
@@ -139,6 +195,8 @@ def main():
                     if cv2.waitKey(1) & 0xFF == ord("q"):
                         break
     finally:
+        if pose_poller and pose_poller.thread.ident is not None:
+            pose_poller.stop()
         cap.release()
         if writer is not None:
             writer.release()

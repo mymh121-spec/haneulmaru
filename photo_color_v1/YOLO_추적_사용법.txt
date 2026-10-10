@@ -4,12 +4,15 @@
   prepare_yolo_rgb.py : 기존 정지사진을 YOLO R/B/G 드론 탐지용으로 변환
   train_yolo_rgb.py   : GPU PC에서 YOLO11n 전이학습
   track_yolo_rgb.py   : 학습한 best.pt로 영상/카메라 탐지와 추적
+  drone_coordinates.py : 드론 박스 중심 + 자세를 ENU 방향으로 변환
+  coordinate_imu.py : 기존 NU40 서버에서 각속도를 읽는 별도 자세 입력
+  drone_coordinate_config.json : 북쪽 기준 및 임시 카메라 투영 설정
   requirements-yolo.txt : Python 의존성
 
 현재 제공 상태
   코드만 준비한 상태이며 학습, 모델 추론, 추적 시험은 실행하지 않았습니다.
   best.pt는 아직 없습니다. 다른 GPU PC에서 아래 학습을 완료해야 생깁니다.
-  이 코드가 기존 하늘마루 화면이나 IMU와 자동 연결되지는 않습니다.
+  NU40 서버를 지정하면 자세 입력과 연결할 수 있습니다. 폰 카메라 자동 탐지는 학습 모델 및 영상 연결이 필요합니다.
 
 탐지 대상
   id 0=R / id 1=B / id 2=G.
@@ -53,6 +56,24 @@ GPU PC 설치 (Python 3.10 이상, 3.11 권장)
   BoT-SORT:
   python track_yolo_rgb.py --weights runs_rgb/drone_rgb/weights/best.pt --source input.mp4 --tracker botsort --device 0 --show
 
+S22 카메라 기준 정보
+  camera_calibration_s22/reference_info.json 에 현재 확인된 정보만 기록되어 있습니다.
+  카메라: Samsung Galaxy S22 (SM-S901N), 후면 1배율
+  카메라와 자 사이 거리: 30cm
+  자의 전체 길이: 31cm, 눈금 구간: 0–30cm
+  기준 사진: camera_calibration_s22/reference_images/
+  이 정보는 추적기에서 사용하지 않으며, 카메라 보정값이나 물체까지 거리·실물 크기를 계산하지 않습니다.
+  이후 사용 목적과 촬영 정보가 정해지면 그에 맞게 관련 코드를 추가합니다.
+
+촬영 시작 방향 = 북쪽 · 시스템 좌표 기록
+  기본 출력의 system_coordinates에 ENU 방향 벡터와 방위·고도각을 추가합니다.
+  기본 수직 화각 55°는 기존 렌더러의 임시 모델이며 S22 측정값이 아닙니다.
+  실제 드론 거리와 공간 위치는 null입니다. 자세 입력이 없으면 고정 카메라라고 가정합니다.
+  창 없이 기록: --jsonl drone_coordinates.jsonl (--show를 생략)
+  NU40 연동: --imu-host-url "실행창의 PC주소 (#연결키 포함)"
+  다른 코드의 자세: --pose-json pose.json
+  자세한 실행법과 로직: SYSTEM_COORDINATES.md
+
   카메라는 --source 0 을 사용합니다. 화면은 --show를 넣었을 때만 외부 창으로 열립니다.
   Q 또는 Ctrl+C로 종료합니다. CPU에서 실행할 때는 --device cpu를 지정하세요.
   영상 저장: --save-video tracked.mp4
@@ -87,3 +108,7 @@ GPU PC 설치 (Python 3.10 이상, 3.11 권장)
   https://docs.ultralytics.com/modes/track/
   https://docs.ultralytics.com/modes/train/
   https://pytorch.org/get-started/locally/
+
+## 카메라 사양 추가 정보
+
+알려주신 카메라 정보는 화각 약 85°(가로·세로·대각선 기준 미확인), 조리개 f/1.8입니다. 화각 기준을 확인하기 전까지 85°는 방향 계산에 적용하지 않고 기존 임시 수직 화각 55°를 유지합니다. 조리개는 기록용이며 방향 벡터 계산에는 사용하지 않습니다.
