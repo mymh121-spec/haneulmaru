@@ -1,3 +1,14 @@
+## YOLO11 + ByteTrack / BoT-SORT 코드
+
+GPU PC에서 학습할 코드를 추가했습니다. 아직 학습된 가중치나 성능 측정 결과는 없습니다.
+
+1. `python prepare_yolo_rgb.py` — 원본 제외, 드론 전체 박스를 R/B/G 3클래스로 변환 (630/180/90장).
+2. `python train_yolo_rgb.py --device 0` — GPU 학습.
+3. `python track_yolo_rgb.py --weights runs_rgb/drone_rgb/weights/best.pt --source input.mp4 --tracker bytetrack --device 0 --show`
+
+`--tracker botsort`로 전환할 수 있습니다. 추론에는 정답 좌표가 필요하지 않습니다.
+설치·실행·다른 코드와의 연동 방법: [YOLO_추적_사용법.txt](YOLO_추적_사용법.txt).
+
 ## R / B / G 색상 판별 코드 추가
 
 `classify_rgb.py`는 표식 영역의 실제 픽셀을 보고 빨강 `R`, 파랑 `B`, 초록 `G`를 출력합니다.
