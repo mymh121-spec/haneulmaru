@@ -1,0 +1,68 @@
+name: Import photo color dataset
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: import-photo-color
+  cancel-in-progress: false
+jobs:
+  import:
+    if: github.repository == 'mymh121-spec/haneulmaru' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+      - name: Import the exact user supplied files
+        shell: python
+        run: |
+          import hashlib, json, pathlib, subprocess, zipfile
+          expected = {
+              'photo_color_payload_01.zip': 'ef61d3a0543f3474ebb20065461b68ee3cb4ef7a1b3ba911cb6abfa1d9243a03',
+              'photo_color_payload_02.zip': '6951daf6dbf0563450703646a5a9c93406640eba00f193de8790ff328416a24e',
+              'photo_color_payload_03.zip': 'd7c9d902b2b2c59920d729306d641d658ac9a21f4ad1319ac4ac6a220934534b',
+              'photo_color_payload_04.zip': 'e30f576bd3a76570224c82358678aaa09c13ea7e29d49bc8907b81869d6c6247',
+          }
+          if pathlib.Path('photo_color_v1').exists():
+              raise SystemExit('Dataset already exists; refusing to overwrite it.')
+          entries = set()
+          for name, digest in expected.items():
+              if hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest() != digest:
+                  raise SystemExit('Payload hash mismatch: ' + name)
+              with zipfile.ZipFile(name) as archive:
+                  for entry in archive.infolist():
+                      p = pathlib.PurePosixPath(entry.filename)
+                      if p.is_absolute() or '..' in p.parts or p.parts[0] != 'photo_color_v1' or entry.is_dir():
+                          raise SystemExit('Unexpected archive entry')
+                      if entry.filename in entries:
+                          raise SystemExit('Duplicate archive entry')
+                      entries.add(entry.filename)
+          for name in expected:
+              with zipfile.ZipFile(name) as archive:
+                  for entry in archive.infolist():
+                      path = pathlib.Path(entry.filename)
+                      path.parent.mkdir(parents=True, exist_ok=True)
+                      path.write_bytes(archive.read(entry))
+          readme = pathlib.Path('README.md')
+          with readme.open('a', encoding='utf-8') as stream:
+              stream.write('\n\n## 정지사진 색상 표식 R / B / G\n\n')
+              stream.write('[photo_color_v1](photo_color_v1/)에 사진 1,200장과 라벨, 별도 색상 판별 코드가 있습니다.\n')
+              stream.write('원본(none)을 제외한 표식 사진 900장을 픽셀 색상으로 R/B/G로 구분합니다.\n')
+              stream.write('표식 위치는 manifest 좌표를 사용하며, 자동 객체 탐지나 학습 모델은 아닙니다.\n')
+              stream.write('[실행 방법](photo_color_v1/RGB_사용법.txt)을 참고하세요. 이번 추가에서는 테스트를 실행하지 않았습니다.\n')
+          subprocess.run(['git', 'add', 'photo_color_v1', 'README.md'], check=True)
+          subprocess.run(['git', 'rm', '--', *expected], check=True)
+          names = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          checksums = {name: hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()
+                       for name in sorted(names) if name and name != 'FILES_SHA256.json'}
+          pathlib.Path('FILES_SHA256.json').write_text(json.dumps(checksums, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          subprocess.run(['git', 'add', 'FILES_SHA256.json'], check=True)
+          print('Imported files:', len(entries))
+      - name: Publish dataset and classifier
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "Add photo_color_v1 dataset and pixel-based R B G classifier"
+          git push origin HEAD:main
