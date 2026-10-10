@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "status": "reference_data_only",
+  "camera": {
+    "manufacturer": "Samsung",
+    "model": "SM-S901N",
+    "device_name": "Galaxy S22",
+    "lens": "rear 1x",
+    "image_resolution_px": [
+      4000,
+      3000
+    ],
+    "capture_type": "still photo",
+    "reported_fov": {
+      "degrees": 85,
+      "approximate": true,
+      "axis": "unknown",
+      "source": "user_reported",
+      "projection_applied": false
+    },
+    "aperture_f_number": 1.8,
+    "aperture_source": "user_reported"
+  },
+  "reference_object": {
+    "type": "ruler",
+    "total_physical_length_cm": 31,
+    "marked_scale_start_cm": 0,
+    "marked_scale_end_cm": 30,
+    "marked_scale_span_cm": 30
+  },
+  "camera_to_ruler_distance_cm": 30,
+  "images": [
+    "reference_images/20261010_190917.jpg",
+    "reference_images/20261010_190919.jpg",
+    "reference_images/20261010_190920.jpg"
+  ],
+  "notes": [
+    "The ruler is 31 cm long overall; its marked 0-to-30 cm scale spans 30 cm.",
+    "This file records supplied reference facts only. It contains no derived calibration or object-distance estimate.",
+    "The reported FOV is approximately 85 degrees, but its horizontal/vertical/diagonal axis is unknown. It is not applied to projection. The f/1.8 aperture is camera metadata only."
+  ]
+}
