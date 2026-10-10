@@ -43,3 +43,11 @@ Three.js/WebGL → canvas.captureStream → WebRTC 비디오 → 휴대폰.
 Git 저장소에서는 Windows x64 cloudflared 2026.10.0을 첫 실행 때 공식 GitHub 배포본에서 다운로드합니다. 제3자 라이선스 및 버전은 `tools/cloudflared`와 `experiments/haneulmaru_pro/vendor`에 있습니다. 프로젝트 전체에 별도의 오픈소스 라이선스를 부여한 것은 아닙니다.
 
 계정·실행 로그·현재 접속 키는 포함하지 않았습니다. `FILES_SHA256.json`은 전달 파일의 체크섬입니다.
+
+
+## 정지사진 색상 표식 R / B / G
+
+[photo_color_v1](photo_color_v1/)에 사진 1,200장과 라벨, 별도 색상 판별 코드가 있습니다.
+원본(none)을 제외한 표식 사진 900장을 픽셀 색상으로 R/B/G로 구분합니다.
+표식 위치는 manifest 좌표를 사용하며, 자동 객체 탐지나 학습 모델은 아닙니다.
+[실행 방법](photo_color_v1/RGB_사용법.txt)을 참고하세요. 이번 추가에서는 테스트를 실행하지 않았습니다.
