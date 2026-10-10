@@ -1,0 +1,4 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {height,position,seeded} from './terrain.js';
+test('terrain is finite across map, repeatable, and has relief',()=>{let lo=Infinity,hi=-Infinity;for(let x=-600;x<=600;x+=10)for(let z=-600;z<=600;z+=10){const h=height(x,z);assert.ok(Number.isFinite(h));assert.equal(h,height(x,z));lo=Math.min(lo,h);hi=Math.max(hi,h);}assert.ok(hi-lo>80);});
+test('synthetic flight clears terrain across 200 objects and 120 seconds',()=>{for(let t=0;t<=120;t+=2)for(let i=0;i<200;i++){const p=position(i,t);assert.ok(p.y-height(p.x,p.z)>20);assert.ok(Math.abs(p.x)<=600&&Math.abs(p.z)<=600);}});
+test('deterministic forest placement and bounded PRNG',()=>{const a=seeded(871),b=seeded(871);for(let i=0;i<10000;i++){const x=a();assert.equal(x,b());assert.ok(x>=0&&x<1);}});

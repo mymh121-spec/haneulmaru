@@ -1,0 +1,1 @@
+{"type":"module","scripts":{"test":"node --test terrain.test.js stream.test.js imu.test.js coordinates.test.js"}}
