@@ -51,3 +51,8 @@ Git 저장소에서는 Windows x64 cloudflared 2026.10.0을 첫 실행 때 공�
 원본(none)을 제외한 표식 사진 900장을 픽셀 색상으로 R/B/G로 구분합니다.
 표식 위치는 manifest 좌표를 사용하며, 자동 객체 탐지나 학습 모델은 아닙니다.
 [실행 방법](photo_color_v1/RGB_사용법.txt)을 참고하세요. 이번 추가에서는 테스트를 실행하지 않았습니다.
+
+
+### YOLO 드론 색상 탐지와 영상 추적
+
+[YOLO 학습·추적 사용법](photo_color_v1/YOLO_추적_사용법.txt): YOLO11로 R/B/G 드론 탐지를 학습하고 ByteTrack 또는 BoT-SORT로 추적합니다. GPU PC 실행용 코드이며 현재 학습된 모델은 포함하지 않습니다.
