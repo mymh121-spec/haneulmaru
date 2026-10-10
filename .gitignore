@@ -10,3 +10,5 @@ __pycache__/
 *.key
 tools/cloudflared/cloudflared.exe
 *.download
+.aws-sam/
+samconfig.toml

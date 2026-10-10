@@ -34,7 +34,7 @@ class Handler(server.Handler):
    return self.send_json(404,{})
   f=ASSETS.get(path)
   if not f or not f.is_file():return self.send(404,b'Not found','text/plain')
-  kind={'js':'text/javascript','webmanifest':'application/manifest+json'}.get(f.suffix[1:],server.mimetypes.guess_type(f.name)[0] or 'application/octet-stream')
+  kind={'js':'text/javascript','mjs':'text/javascript','json':'application/json','webmanifest':'application/manifest+json'}.get(f.suffix[1:],server.mimetypes.guess_type(f.name)[0] or 'application/octet-stream')
   return self.send(200,f.read_bytes(),kind)
  def do_POST(self):
   global SEQ

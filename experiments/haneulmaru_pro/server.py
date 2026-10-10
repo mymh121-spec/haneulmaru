@@ -6,8 +6,11 @@ import json,mimetypes,threading,subprocess,re,sys,webbrowser
 ROOT=Path(__file__).resolve().parent
 PUBLIC_URL=''
 FILES=['index.html','style.css','app.js','world.js','terrain.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','README.html','vendor/three.module.min.js','vendor/three.core.min.js','vendor/OrbitControls.js','vendor/LICENSE.txt']
+FILES += ['replay/index.html','replay/replay.css','replay/app.mjs','replay/core.mjs','replay/providers.mjs',
+          'replay/data/catalog.json','replay/data/floating-shapes.json','replay/data/crossing-shapes.json']
 ASSETS={'/'+n:ROOT/n for n in FILES}
 ASSETS['/']=ROOT/'index.html'
+ASSETS['/replay/']=ROOT/'replay/index.html'
 class Handler(BaseHTTPRequestHandler):
  def log_message(self,*args):pass
  def send(self,status,data,kind):
@@ -28,7 +31,7 @@ class Handler(BaseHTTPRequestHandler):
    except ImportError:return self.send(503,b'QR unavailable; use URL','text/plain')
   f=ASSETS.get(path)
   if not f or not f.is_file():return self.send(404,b'Not found','text/plain')
-  kind={'js':'text/javascript','webmanifest':'application/manifest+json'}.get(f.suffix[1:],mimetypes.guess_type(f.name)[0] or 'application/octet-stream')
+  kind={'js':'text/javascript','mjs':'text/javascript','json':'application/json','webmanifest':'application/manifest+json'}.get(f.suffix[1:],mimetypes.guess_type(f.name)[0] or 'application/octet-stream')
   return self.send(200,f.read_bytes(),kind)
 def main():
  global PUBLIC_URL
