@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "camera": {
+    "device": "Samsung Galaxy S22 rear 1x",
+    "source": "",
+    "live": true,
+    "rotation_clockwise_deg": 0,
+    "reported_fov_deg": 85,
+    "reported_fov_axis": "unknown",
+    "aperture_f_number": 1.8
+  },
+  "imu": {
+    "enabled": true,
+    "port": null,
+    "baud": 115200,
+    "ble": true,
+    "ble_address": null,
+    "training_path": "assets/nu40-imu-direction-training.json"
+  },
+  "engine": {
+    "name": "disabled",
+    "model_path": "models/best.pt",
+    "device": "cpu",
+    "input_size": 640,
+    "classes": ["R", "B", "G"],
+    "confidence": 0.1,
+    "nms_iou": 0.7,
+    "input_name": "images",
+    "output_name": "output0",
+    "output_layout": "yolo11_raw_1_7_n"
+  },
+  "tracking": "none",
+  "color_confidence": 0.4,
+  "reset_tracking_after_gap_ms": 1000
+}
