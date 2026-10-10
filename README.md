@@ -1,5 +1,17 @@
 # 하늘마루 · Haneulmaru
 
+## ClikaRT·여러 기기 확장 기반
+
+`multidevice_app/`에 S22 영상 입력, NU40 USB/BLE 입력, 학습된 상하좌우 판정, 인식 엔진, ByteTrack/BoT-SORT 추적, 결과 출력을 분리한 코드가 있습니다. Windows 호스트 실행 코드와 Android 처리 인터페이스를 포함하며 같은 결과 계약을 사용합니다.
+
+**현재는 확장 기반입니다.** ClikaRT SDK·라이선스·학습 모델이 필요하며 실제 ClikaRT 실행과 Android 앱 패키징은 아직 수행하지 않았습니다. S22 실시간 입력에는 별도 카메라 송신기 또는 추후 CameraX 어댑터가 필요합니다. 기존 V4 합성 게임과 별도로 실행합니다.
+
+- [구조·Windows 실행·ClikaRT·Android 연결 안내](multidevice_app/구조와실행.txt)
+- [검토 결과와 확인 범위](multidevice_app/검토결과.txt)
+- [설정](multidevice_app/config.json)
+- [공통 처리 코드](multidevice_app/pipeline.py)
+- [Android 연결 계약](multidevice_app/android/HaneulmaruCore.kt)
+
 ## 새 버전: V4 합성 드론 게임
 
 **V4는 [하늘마루 V4](하늘마루%20V4) 폴더의 `하늘마루_실행.cmd`로 실행합니다.** 기존 루트 버전은 보존했습니다. Windows에서 저장소 루트의 `V4_실행.cmd`를 실행해도 됩니다. PC 주소는 `http://127.0.0.1:8794/host`입니다.
