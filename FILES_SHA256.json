@@ -3705,7 +3705,7 @@
   "multidevice_app/.gitignore": "828026450f4086e449be58ff1478c25acf7216b65ef6efecce5c6fdaba937936",
   "multidevice_app/pipeline.py": "401b7e3b9595e8612abb93202db6253dc9e6c34e0157eb4ec166edd4194b84a4",
   "multidevice_app/nu40_transport.py": "2f3ae342b073d264fb859841890fce63b6fbc9d902341b60393a0f775a346bc0",
-  "multidevice_app/assets/nu40-imu-direction-training.json": "f475d8a5852226c15f5e86049034c69261aba5ece0ddc99b564147ab9f271974",
+  "multidevice_app/assets/nu40-imu-direction-training.json": "df80209f15a5f7113f181fb1d7b4843c33a895f8218173eda98f38331c487cad",
   "multidevice_app/android/HaneulmaruCore.kt": "b9b07e16342f10b059d76483ace4eb14f5549f1c479d54bfd2b41ba74479c594",
-  "multidevice_app/models/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  "multidevice_app/models/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
 }
