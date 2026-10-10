@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "coordinate_system": "ENU",
+  "north_reference": "initial_camera_heading_assumed",
+  "origin_mode": "stationary_camera_assumed",
+  "projection": {
+    "intrinsics": null,
+    "vertical_fov_deg": 55,
+    "calibrated": false,
+    "note": "Reported S22 FOV is approximately 85 degrees with unknown axis; it is not applied. The existing provisional vertical FOV of 55 degrees remains in use. f/1.8 is metadata only. Replace with capture-mode intrinsics when available."
+  },
+  "distance_policy": "unknown",
+  "camera_reference_info": "camera_calibration_s22/reference_info.json",
+  "reported_camera": {
+    "fov_deg": 85,
+    "fov_approximate": true,
+    "fov_axis": "unknown",
+    "aperture_f_number": 1.8,
+    "source": "user_reported"
+  }
+}

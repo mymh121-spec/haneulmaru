@@ -1,0 +1,13 @@
+.venv-yolo/
+yolo_rgb/
+runs_rgb/
+__pycache__/
+*.pyc
+*.pt
+*.onnx
+*.engine
+*.cache
+rgb_results.csv
+rgb_test_results.csv
+tracks.jsonl
+tracked.mp4

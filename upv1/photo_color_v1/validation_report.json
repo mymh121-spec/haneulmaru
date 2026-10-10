@@ -1,0 +1,28 @@
+{
+  "status": "PASS",
+  "images_verified": 1200,
+  "source_groups": 300,
+  "counts": {
+    "train": {
+      "none": 210,
+      "red": 210,
+      "blue": 210,
+      "green": 210
+    },
+    "val": {
+      "none": 60,
+      "red": 60,
+      "blue": 60,
+      "green": 60
+    },
+    "test": {
+      "none": 30,
+      "red": 30,
+      "blue": 30,
+      "green": 30
+    }
+  },
+  "source_group_leakage": 0,
+  "all_original_pairs_dhash_distance_greater_than": 4,
+  "note": "Structural validation only; not a model accuracy or physical-marker benchmark."
+}
