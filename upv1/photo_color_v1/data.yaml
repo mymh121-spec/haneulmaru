@@ -1,7 +1,0 @@
-# Pass an absolute path override if your trainer resolves this relative to a global datasets directory.
-path: .
-train: images/train
-val: images/val
-test: images/test
-nc: 1
-names: ['drone']

@@ -1,1 +1,0 @@
-{"type": "imu", "schema": 1, "device_id": "nu40-left", "hand": "L", "seq": 1, "ts_ms": 1000, "calibration": "ready", "mode_id": "raw", "zero_valid": false, "imu": {"ax_g": 0, "ay_g": 0, "az_g": 1, "gx_dps": 0, "gy_dps": 0, "gz_dps": 0}}

@@ -1,4 +1,0 @@
-numpy>=1.26,<3
-opencv-python>=4.10,<5
-pyserial>=3.5,<4
-bleak>=0.22,<4
