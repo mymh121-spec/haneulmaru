@@ -1,0 +1,14 @@
+{
+  "scenarios": [
+    {
+      "id": "floating-shapes",
+      "title": "공중 도형 · 기본 재생",
+      "source": "synthetic"
+    },
+    {
+      "id": "crossing-shapes",
+      "title": "교차하는 도형 · 좌표 확인",
+      "source": "synthetic"
+    }
+  ]
+}

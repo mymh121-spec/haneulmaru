@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Haneulmaru authored synthetic scenario read API. No camera or control endpoints.
+Parameters:
+  AllowedOrigin:
+    Type: String
+    Description: Exact browser origin, for example https://demo.example.com (no trailing slash).
+    AllowedPattern: '^https://[A-Za-z0-9.-]+(:[0-9]+)?$'
+  JwtIssuer:
+    Type: String
+    Description: Existing Cognito/OIDC issuer HTTPS URL.
+    AllowedPattern: '^https://[^\s]+$'
+  JwtAudience:
+    Type: String
+    Description: Existing OAuth application client ID / token audience.
+    MinLength: 1
+  ReadScope:
+    Type: String
+    Default: haneulmaru/scenarios.read
+    Description: Scope required on an access token. Configure it with your identity provider first.
+Resources:
+  ScenarioApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: '$default'
+      DefinitionBody:
+        openapi: 3.0.1
+        info:
+          title: Haneulmaru scenario replay
+          version: '1.0'
+        paths: {}
+      CorsConfiguration:
+        AllowOrigins: [!Ref AllowedOrigin]
+        AllowMethods: [GET, OPTIONS]
+        AllowHeaders: [Authorization, Content-Type]
+        MaxAge: 300
+      Auth:
+        DefaultAuthorizer: ScenarioReader
+        Authorizers:
+          ScenarioReader:
+            IdentitySource: '$request.header.Authorization'
+            JwtConfiguration:
+              issuer: !Ref JwtIssuer
+              audience: [!Ref JwtAudience]
+            AuthorizationScopes: [!Ref ReadScope]
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 10
+        ThrottlingRateLimit: 5
+  ScenarioFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../experiments/haneulmaru_pro/replay/
+      Handler: aws-handler.handler
+      Runtime: nodejs22.x
+      Architectures: [arm64]
+      MemorySize: 128
+      Timeout: 5
+      ReservedConcurrentExecutions: 2
+      Policies: [AWSLambdaBasicExecutionRole]
+      Events:
+        ListScenarios:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ScenarioApi
+            Path: /scenarios
+            Method: GET
+            PayloadFormatVersion: '2.0'
+        GetScenario:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ScenarioApi
+            Path: /scenarios/{id}
+            Method: GET
+            PayloadFormatVersion: '2.0'
+  ScenarioLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ScenarioFunction}'
+      RetentionInDays: 7
+Outputs:
+  ScenarioApiUrl:
+    Description: Paste this into the replay page; an authorized access token is also required.
+    Value: !Sub 'https://${ScenarioApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'

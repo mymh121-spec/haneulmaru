@@ -1,1 +1,1 @@
-{"type":"module","scripts":{"test":"node --test terrain.test.js"}}
+{"type":"module","scripts":{"test":"node --test terrain.test.js stream.test.js replay/replay.test.mjs"}}

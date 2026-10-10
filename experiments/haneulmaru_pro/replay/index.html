@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#091421">
+  <title>하늘마루 · 가상 데이터 재생</title>
+  <link rel="stylesheet" href="./replay.css">
+  <script type="importmap">{"imports":{"three":"../vendor/three.module.min.js"}}</script>
+</head>
+<body>
+  <header><div><p class="eyebrow">HANEULMARU / SCENARIO LAB</p><h1>가상 데이터 재생</h1></div><span class="badge">SIMULATION ONLY</span></header>
+  <main>
+    <section class="visual" aria-label="가상 공간 시각화">
+      <canvas id="scene" aria-label="가상 도형, 공간 분할, 사전 작성 경로"></canvas>
+      <div class="scene-heading"><span class="live-dot"></span><span id="sourceLabel">기본 가상 데이터</span><span id="timeLabel">00.0 s</span></div>
+      <div id="sceneError" role="alert" hidden></div>
+      <div class="legend"><span><i class="a"></i>가상 그룹 A</span><span><i class="b"></i>가상 그룹 B</span><span><i class="unknown"></i>미확인 설정</span></div>
+      <div class="scene-note">실제 영상·위치 추정 없이, 작성된 시나리오만 재생합니다.</div>
+    </section>
+    <aside>
+      <section class="card"><p class="eyebrow">01 / PLAYBACK</p><h2>시나리오</h2>
+        <label for="scenario">재생할 장면</label><select id="scenario" disabled></select>
+        <div class="row"><button id="play" disabled>일시정지</button><button id="restart" disabled>처음으로</button><select id="speed" aria-label="재생 속도"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div>
+        <label for="timeline">시나리오 시간 <output id="durationLabel">—</output></label><input id="timeline" type="range" min="0" max="60" step="0.1" value="0" disabled>
+        <p id="status" role="status" aria-live="polite">가상 데이터를 불러오는 중입니다.</p>
+      </section>
+      <section class="card"><p class="eyebrow">02 / SPACE</p><h2>좌표와 표시</h2>
+        <label for="origin">공중 원점 높이 <output id="originLabel">100 m</output></label><input id="origin" type="range" min="0" max="150" step="5" value="100">
+        <p class="muted">X·Z: 수평 / Y: 위쪽 · 미터 단위<br>높이는 가상 기준면 기준이며 실제 해발고도가 아닙니다.</p>
+        <label class="check"><input id="cells" type="checkbox" checked>공간 분할과 샘플 분포</label>
+        <label for="depth">공간 분할 단계</label><select id="depth"><option value="1">1단계 · 큰 셀</option><option value="2" selected>2단계 · 균형</option><option value="3">3단계 · 작은 셀</option></select>
+        <label class="check"><input id="paths" type="checkbox" checked>사전 작성 경로의 부피</label>
+        <p class="muted">셀의 밝기는 최근 8초 샘플 비율입니다. 존재 확률이나 예측 정확도가 아닙니다.</p>
+      </section>
+      <section class="card"><p class="eyebrow">03 / DETAILS</p><h2>가상 객체</h2><div id="objects" class="object-list"></div><dl id="details"></dl><p id="cellSummary" class="muted"></p></section>
+      <details class="card"><summary>AWS 시나리오 API 연결</summary><p class="muted">인증된 API에서 가상 시나리오를 읽습니다. 토큰은 현재 페이지 메모리에서만 사용합니다.</p>
+        <form id="apiForm"><label for="endpoint">HTTPS API 주소</label><input id="endpoint" type="url" placeholder="https://example.execute-api.region.amazonaws.com" required autocomplete="off">
+        <label for="token">액세스 토큰</label><input id="token" type="password" required autocomplete="off" spellcheck="false">
+        <div class="row"><button id="connect" type="submit">API 연결</button><button id="disconnect" type="button">기본 데이터로</button></div></form>
+        <p class="muted">영상·센서 업로드와 장비 제어 기능은 없습니다. 연결 실패 시 현재 장면을 유지합니다.</p>
+      </details>
+    </aside>
+  </main>
+  <footer>사전 작성 데이터 · Unity 미사용 · 모델 추론 미연결 <a href="../index.html">기존 데모</a></footer>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
