@@ -9,5 +9,5 @@ export function height(x,z){
  const edge=Math.max(0,Math.min(1,(600-Math.max(Math.abs(x),Math.abs(z)))/65));
  return -5+valley*(30+220*(f/total)**1.65)*smooth(edge);
 }
-export function position(i,time){const phase=i*2.399963+time*(.028+(i%5)*.002),r=105+(i%9)*34;const x=Math.sin(phase)*r,z=Math.cos(phase*.87+i)*r;return {x,y:Math.max(80,height(x,z)+30)+Math.sin(time*.4+i)*6,z};}
+export function position(i,time,target={}){const phase=i*2.399963+time*(.028+(i%5)*.002),r=105+(i%9)*34;const x=Math.sin(phase)*r,z=Math.cos(phase*.87+i)*r;target.x=x;target.y=Math.max(80,height(x,z)+30)+Math.sin(time*.4+i)*6;target.z=z;return target;}
 export function seeded(seed=12345){return()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};}
