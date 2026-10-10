@@ -5,7 +5,7 @@ from urllib.parse import urlsplit
 import json,mimetypes,threading,subprocess,re,sys,webbrowser
 ROOT=Path(__file__).resolve().parent
 PUBLIC_URL=''
-FILES=['index.html','style.css','app.js','imu-input.js','imu-direction.js','world.js','terrain.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','README.html','vendor/three.module.min.js','vendor/three.core.min.js','vendor/OrbitControls.js','vendor/LICENSE.txt']
+FILES=['index.html','style.css','app.js','drone-coordinates.js','coordinate-ui.js','imu-input.js','imu-direction.js','world.js','terrain.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','README.html','vendor/three.module.min.js','vendor/three.core.min.js','vendor/OrbitControls.js','vendor/LICENSE.txt']
 ASSETS={'/'+n:ROOT/n for n in FILES}
 ASSETS['/']=ROOT/'index.html'
 class Handler(BaseHTTPRequestHandler):

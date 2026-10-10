@@ -52,7 +52,7 @@ class InputTests(unittest.TestCase):
                     self.assertEqual(error.exception.code,status)
                 with urlopen(Request(root+'/stream/'+path,headers={'Authorization':'Bearer '+app.HOST})) as response:
                     self.assertEqual(response.status,200)
-            for asset in ('imu-input.js','imu-direction.js'):
+            for asset in ('imu-input.js','imu-direction.js','drone-coordinates.js','coordinate-ui.js'):
                 with urlopen(root+'/'+asset) as response:self.assertEqual(response.status,200)
         finally:
             server.shutdown();server.server_close();worker.join();app.IMU=None
