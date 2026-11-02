@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "model_path": "synthetic-peaks.onnx",
+  "classes": ["빨강 표식", "파랑 표식", "초록 표식"],
+  "input_size": 128,
+  "input_name": "images",
+  "output_name": "output0",
+  "output_layout": "yolo_raw",
+  "agnostic_nms": false
+}

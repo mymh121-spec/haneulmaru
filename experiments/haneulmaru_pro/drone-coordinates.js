@@ -89,7 +89,7 @@ export class GyroPose {
   reset(){this.heading=0;this.pitch=0;this.previous=null;this.session=null;this.source=null;this.valid=false;this.uncertain=false;}
   consume(state) {
     const p=state?.sample;
-    if(!p||!finite(state.age_ms)||state.age_ms<0||state.age_ms>350||!['USB','BLE'].includes(state.source)){
+    if(!p||!finite(state.age_ms)||state.age_ms<0||state.age_ms>350||!['USB','BLE','USB/Wi-Fi'].includes(state.source)){
       if(this.previous!==null)this.uncertain=true;this.previous=null;this.valid=false;return this.snapshot();
     }
     const v=[p.gx,p.gy,p.gz],stamp=p.t_ms;

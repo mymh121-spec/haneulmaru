@@ -1,44 +1,13 @@
-NU40 DK + NU-IMU-LSM6DS3TR (Qwiic) 연결
+NU40 → S22 USB → PC Wi-Fi
 
-Linux: bash 실행.sh
-Windows: 하늘마루_실행.cmd (기존 실행 경로)
-수동: python experiments/haneulmaru_pro/stream_server.py --local
-의존성: python -m pip install -r requirements.txt
+1. ZIP 전체를 Windows PC에 풉니다. 센서만 시험하려면 NU40_수신.cmd를 실행합니다. Python과 학습된 영상 모델은 이 시험에 필요하지 않습니다.
+2. 폰과 PC를 같은 공유기 또는 PC 모바일 핫스팟에 연결합니다. 양쪽이 통신할 수 있는 사설망에서 사용하고, Windows 개인 네트워크에서 수신기에 UDP 8793을 허용합니다.
+3. S22에 Haneulmaru-USB.apk를 설치합니다. NU40의 USB 데이터 포트와 S22를 OTG 데이터 케이블로 연결합니다. 앱을 열고 PC Wi-Fi IPv4 주소, 포트 8793, PC 창의 Pair key를 입력합니다. USB → Wi-Fi 시작을 누른 뒤 USB 접근을 허용합니다.
+4. PC 창에서 event=sample, source=USB/Wi-Fi, t_ms가 계속 바뀌는지 봅니다. NU40을 움직이면 direction에 up/down/left/right가 표시됩니다. USB를 뽑으면 전송이 멈추고 재연결하면 새 세션으로 수신합니다. 웹 화면과 영상 파이프라인은 350ms가 지난 입력을 무효 처리합니다. 폰의 전송 건수는 송신 건수이며 수신 확인은 PC에서 합니다.
+5. 센서 시험을 마치면 PC에서 Ctrl+C를 누릅니다. 웹 데모(하늘마루_실행.cmd)와 영상 인식(multidevice_app)은 각각 같은 Rust 수신기를 시작합니다. 포트 8793을 동시에 쓰는 모드는 하나만 실행하고 모드 전환 시 새 PC 키를 폰에 입력합니다.
 
-실행하면 PC 렌더러가 기본 브라우저에서 열립니다. NUCODE · IMU 패널에서
-USB 수신 중 / BLE 수신 유지 상태와 위쪽·아래쪽·왼쪽·오른쪽을 확인하세요.
-USB 데이터가 있으면 USB를 사용하고 BLE도 동시에 연결·수신합니다.
-USB 데이터가 0.35초 이상 없으면 최신 BLE 데이터로 전환합니다.
-양쪽 데이터가 모두 없으면 회전을 멈추며 연결을 계속 재시도합니다.
+Android 앱은 NU40 USB VID 239a / PID 80da, CDC ACM 115200 8N1을 사용합니다. USB 접근이 거절되면 앱에서 시작을 다시 누르세요. 앱의 중지 버튼은 USB와 UDP 전송을 닫습니다. 공유기 없이 PC 핫스팟을 쓰면 PC의 핫스팟 인터페이스 IPv4 주소를 입력합니다. 127.0.0.1 및 0.0.0.0은 폰의 목적지 주소가 아닙니다.
 
-IMU 중지: 회전 입력만 멈춥니다. USB와 BLE 연결은 유지합니다.
-IMU 시작: 학습된 방향 입력을 다시 사용합니다.
-시점 초기화: 카메라를 처음 시점으로 돌립니다.
-회전 감도: 같은 움직임에 대한 시점 회전량을 바꿉니다.
-IMU 사용 중에는 휴대폰 회전·드래그·확대 입력과 충돌하지 않습니다.
-2D 지도에서는 IMU 시점 회전을 적용하지 않습니다.
+폰은 줄 단위 USB JSON을 PC에 UDP로 전달하고 PC Rust가 입력 검증과 방향 판정을 합니다. 현재 보드 v1과 참고 펌웨어의 type=imu/schema=1 형식을 지원합니다. PC의 신규 실행마다 페어링 키가 바뀝니다. 패킷에는 키가 평문으로 실리므로 신뢰하는 사설망에서 사용하세요. 키와 순번이 일치하는 최신 샘플만 받습니다. USB 장착 축이 달라지면 학습 방향을 다시 보정해야 합니다.
 
-학습 모델: +imu data/nu40-imu-direction-training(1).json
-방향마다 3회 학습한 벡터를 단위벡터로 정규화하고 현재 gx,gy,gz와 비교합니다.
-학습 당시 회전 속도에 고정되지 않습니다. 현재 각속도 크기와 샘플 시간으로
-화면 회전량을 계산합니다. 20 deg/s 미만은 정지로 처리합니다.
-방향 유사도 0.62 미만 또는 두 방향 점수가 비슷한 대각 움직임은 무시합니다.
-각속도 기반 상대 시점 조작이며 절대 방위·위치·기울기 추정은 아닙니다.
-센서 장착 방향을 바꾸면 모델을 다시 학습해야 합니다.
-
-확인한 현재 보드 프로토콜:
-USB 115200 baud, NDJSON {v:1,t_ms,ax,ay,az,gx,gy,gz}
-가속도 g, 각속도 deg/s, 보드 시간 uint32 ms, 약 20 Hz.
-BLE 이름 NU40-IMU, Nordic UART TX 6e400003-b5a3-f393-e0a9-e50e24dcca9e
-BLE 17바이트 little endian <BI6h: v,t_ms,ax*10000,ay*10000,az*10000,gx*10,gy*10,gz*10.
-현재 보드 펌웨어를 그대로 사용합니다.
-
-USB 자동 검색은 현재 NU40의 VID 239a / PID 80da에 한정합니다.
-다른 펌웨어 USB ID 또는 여러 NU40: --imu-port /dev/ttyACM0 (Windows COM 번호)
-여러 BLE 보드: --ble-address 장치주소
-USB만 사용: --no-ble
-기존 폰 입력만 사용: --no-imu
-Linux에서 포트 접근 오류가 있으면 계정의 dialout 권한을 확인하세요.
-기존 IMU 뷰어가 같은 USB 포트를 읽고 있다면 해당 뷰어를 먼저 종료하세요.
-센서 API와 학습 모델 API는 현재 실행의 PC 호스트 토큰으로만 접근됩니다.
-기본 Linux 실행은 외부 터널을 만들지 않는 로컬 모드입니다.
+영상 인식 실행 방법은 multidevice_app/구조와실행.txt에 있습니다.

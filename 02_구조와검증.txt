@@ -1,3 +1,5 @@
+이 파일은 이전 전달본의 기록입니다. 현재 연결은 NU40 → S22 USB → Wi-Fi → PC Rust이며 최신 실행법은 NU40_연동_사용법.txt를 참조하세요.
+
 [NU40 연동 추가] 현재 연결은 NU40_연동_사용법.txt 및 experiments/haneulmaru_pro/VALIDATION.txt를 확인하세요.
 
 구조

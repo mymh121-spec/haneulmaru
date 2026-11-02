@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "camera": {
+    "source": "",
+    "live": false,
+    "device": "Synthetic coloured targets",
+    "rotation_clockwise_deg": 0
+  },
+  "imu": {
+    "enabled": false,
+    "bind": "0.0.0.0:8793",
+    "training_path": "../assets/nu40-imu-direction-training.json"
+  },
+  "engine": {
+    "name": "rust",
+    "model_path": "synthetic-peaks.onnx",
+    "device": "cpu",
+    "input_size": 128,
+    "classes": [
+      "R",
+      "B",
+      "G"
+    ],
+    "confidence": 0.1,
+    "nms_iou": 0.7,
+    "input_name": "images",
+    "output_name": "output0",
+    "output_layout": "yolo11_raw_1_7_n"
+  },
+  "tracking": "rust",
+  "color_confidence": 0.4,
+  "reset_tracking_after_gap_ms": 1000
+}

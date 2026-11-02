@@ -11,9 +11,9 @@ class SetupError(RuntimeError):
 
 @dataclass(frozen=True)
 class Frame:
-    """Upright, unmirrored BGR uint8 image; timestamp in host monotonic ms.
+    """Upright, unmirrored BGR uint8 image with its declared timestamp basis.
 
-    For network video this is decode time, not S22 sensor exposure time.
+    Live input uses host decode time. Recordings use the video clock when available.
     A native camera adapter must map sensor time into the same clock first.
     """
     sequence: int
@@ -30,8 +30,8 @@ class Detection:
     id: int | None = None
 
     def validate(self, width, height):
-        if self.code not in ("R", "B", "G", "UNKNOWN"):
-            raise ValueError("Unknown class")
+        if not isinstance(self.code, str) or not self.code.strip():
+            raise ValueError("Missing class label")
         if not math.isfinite(self.confidence) or not 0 <= self.confidence <= 1:
             raise ValueError("Invalid confidence")
         if len(self.xyxy) != 4 or not all(math.isfinite(v) for v in self.xyxy):

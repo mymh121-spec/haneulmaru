@@ -8,7 +8,7 @@ if (-not (Test-Path -LiteralPath $taskPython)) {
     else { throw 'Install Python 3.10+ from python.org, then run again.' }
     if ($LASTEXITCODE -ne 0) { throw 'Virtual environment creation failed.' }
 }
-& $taskPython -c "import reportlab, serial, bleak"
+& $taskPython -c "import reportlab"
 if ($LASTEXITCODE -ne 0) {
     & $taskPython -m pip install -r (Join-Path $PSScriptRoot 'requirements.txt')
     if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed; check internet connection.' }

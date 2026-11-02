@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="33"/>
+    <uses-feature android:name="android.hardware.usb.host" android:required="true"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <application android:label="하늘마루 USB" android:allowBackup="false">
+        <activity android:name="io.haneulmaru.bridge.BridgeActivity" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity>
+        <service android:name="io.haneulmaru.bridge.BridgeService" android:exported="false" android:foregroundServiceType="connectedDevice"/>
+    </application>
+</manifest>

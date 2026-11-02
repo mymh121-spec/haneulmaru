@@ -22,14 +22,16 @@ class Pipeline:
             raise ValueError("Invalid frame identity/time")
         if self.previous and frame.sequence <= self.previous[0]:
             raise ValueError("Frames must be ordered")
+        shape = frame.image.shape[:2]
         if self.previous and (frame.timestamp_ms < self.previous[1] or
-                              frame.timestamp_ms - self.previous[1] > self.max_gap_ms):
+                              frame.timestamp_ms - self.previous[1] > self.max_gap_ms or shape != self.previous[2]):
             self.tracker.reset()
             self.session = uuid.uuid4().hex
-        self.previous = frame.sequence, frame.timestamp_ms
+        self.previous = frame.sequence, frame.timestamp_ms, shape
         # Snapshot/classify before inference. Never attach a newer IMU sample
         # merely because inference for this frame finished late.
-        imu = (self.direction_classifier.classify(imu_state) if attach_live_imu else
+        imu = ((imu_state["classification"] if isinstance(imu_state, dict) and "classification" in imu_state
+                else self.direction_classifier.classify(imu_state)) if attach_live_imu else
                dict(valid=False, direction=None, reason="recording_has_no_synchronized_imu"))
         start = time.perf_counter()
         detections = self.engine.detect(frame)
@@ -56,4 +58,9 @@ class Pipeline:
                     execution_device="host", range_m=None)
 
     def close(self):
-        self.engine.close()
+        try:
+            self.engine.close()
+        finally:
+            close = getattr(self.tracker, "close", None)
+            if close:
+                close()

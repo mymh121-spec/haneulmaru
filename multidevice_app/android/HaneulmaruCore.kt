@@ -5,8 +5,7 @@ import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.sqrt
 
-// Integration library source, not an APK. CameraX/BLE lifecycle and ClikaRT
-// native binding are supplied by the Android app that embeds these contracts.
+// Optional local-processing contracts. The USB bridge APK runs its detector on the PC.
 data class CameraFrame(
     val sequence: Long,
     val timestampMs: Double,
@@ -24,7 +23,7 @@ data class CameraFrame(
 
 data class Detection(val code: String, val confidence: Double, val xyxy: List<Double>, val id: Long? = null) {
     fun validate(frame: CameraFrame) {
-        require(code in listOf("R", "B", "G", "UNKNOWN"))
+        require(code.isNotBlank())
         require(confidence.isFinite() && confidence in 0.0..1.0)
         require(xyxy.size == 4 && xyxy.all { it.isFinite() })
         require(xyxy[0] >= 0 && xyxy[0] < xyxy[2] && xyxy[2] <= frame.width)
@@ -44,18 +43,6 @@ class DisabledEngine : InferenceEngine {
     override val status = EngineStatus("disabled", false, "인식 엔진 미연결")
     override fun detect(frame: CameraFrame) = emptyList<Detection>()
     override fun close() {}
-}
-
-// A real ClikaRT SDK adapter must implement this. No fake SDK types or
-// default detections are supplied, and failure does not switch engines.
-interface ClikaRtBinding : AutoCloseable {
-    fun detectRgb(frame: CameraFrame): List<Detection>
-}
-
-class ClikaRtEngine(private val binding: ClikaRtBinding) : InferenceEngine {
-    override val status = EngineStatus("clikart", true, null)
-    override fun detect(frame: CameraFrame): List<Detection> = binding.detectRgb(frame)
-    override fun close() = binding.close()
 }
 
 data class ImuSample(val boardTMs: Long, val gyroDps: List<Double>, val accelerationG: List<Double>) {

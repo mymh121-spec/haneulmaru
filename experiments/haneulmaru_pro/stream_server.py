@@ -5,7 +5,8 @@ from urllib.parse import urlsplit,parse_qs
 import secrets,json,threading,subprocess,sys,re,webbrowser,base64,time
 from collections import deque
 import argparse,shutil
-from nu40_imu import ImuHub
+sys.path.insert(0,str(server.ROOT.parents[1]))
+from multidevice_app.rust_host import WifiImu
 IMU=None
 MODEL=server.ROOT.parents[1]/"+imu data"/"nu40-imu-direction-training(1).json"
 HOST=secrets.token_urlsafe(24);PHONE=secrets.token_urlsafe(24);URL='';LOCK=threading.Lock();MESSAGES=deque(maxlen=256);SEQ=0
@@ -65,20 +66,18 @@ class Handler(server.Handler):
   return self.send_json(200,{'ok':True})
 def main():
  global URL,IMU
- parser=argparse.ArgumentParser(description='Haneulmaru with NU40 USB/BLE IMU')
+ parser=argparse.ArgumentParser(description='Haneulmaru with NU40 phone USB / PC Wi-Fi')
  parser.add_argument('--local',action='store_true',help='Run without a public tunnel')
  parser.add_argument('--no-browser',action='store_true')
  parser.add_argument('--port',type=int,default=8792)
- parser.add_argument('--imu-port',help='NU40 USB port; auto-detects by USB VID/PID by default')
- parser.add_argument('--ble-address',help='Optional BLE address for selecting one NU40')
+ parser.add_argument('--imu-bind',default='0.0.0.0:8793',help='Phone relay UDP listen address')
  parser.add_argument('--no-imu',action='store_true')
- parser.add_argument('--no-ble',action='store_true')
  args=parser.parse_args()
  try:http=ThreadingHTTPServer(('127.0.0.1',args.port),Handler)
  except OSError:print(f'Port {args.port} occupied. Existing stream server may be running.',flush=True);return 1
  child=None
  if not args.no_imu:
-  IMU=ImuHub(port=args.imu_port,ble_address=args.ble_address,ble=not args.no_ble)
+  IMU=WifiImu(args.imu_bind, MODEL)
   IMU.start()
  threading.Thread(target=http.serve_forever,daemon=True).start()
  host=f'http://127.0.0.1:{args.port}/host#'+HOST
@@ -87,7 +86,7 @@ def main():
  exe=server.ROOT.parents[1]/'tools/cloudflared/cloudflared.exe' if sys.platform=='win32' else shutil.which('cloudflared')
  try:
   if args.local or not exe or not server.Path(exe).is_file():
-   print('Local mode: NU40 USB preferred; BLE remains connected.',flush=True)
+   print('Local mode: NU40 via phone USB / PC Wi-Fi.',flush=True)
    threading.Event().wait()
   else:
    child=subprocess.Popen([str(exe),'tunnel','--no-autoupdate','--url',f'http://127.0.0.1:{args.port}','--protocol','http2'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding='utf-8',errors='replace',creationflags=subprocess.CREATE_NO_WINDOW if sys.platform=='win32' else 0)

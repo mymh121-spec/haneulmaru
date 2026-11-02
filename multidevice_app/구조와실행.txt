@@ -1,156 +1,40 @@
-하늘마루: ClikaRT와 여러 기기로 확장하기 위한 코드
-================================================
+하늘마루 PC Rust 영상 인식과 USB 센서 중계
 
-목표와 현재 범위
----------------
-S22 후면 1배 카메라, NU40 DK + NU-IMU-LSM6DS3TR를 입력으로 유지한다.
-인식 엔진을 교체해도 입력, 방향 판정, 추적, 출력 부분을 유지하도록 한다.
-Windows 호스트 실행 코드와 Android에 넣을 계약/처리 코드를 준비했다.
-현재 Android 앱/APK나 두 기기의 ClikaRT 실행 실적은 아니다.
-ClikaRT SDK, 라이선스, 학습된 모델은 포함되지 않았다.
-원래 V4의 합성 장면/게임에 이 파이프라인을 연결하지 않았다.
+기기 연결
+NU40 → USB CDC → S22의 하늘마루 USB 앱 → Wi-Fi UDP 8793 → PC Rust.
+앱 설치와 센서 단독 시험은 프로젝트 루트의 NU40_연동_사용법.txt를 따르세요.
+이 APK는 USB 센서 중계용입니다. 실시간 영상 입력에는 별도 S22 카메라 송신기의 스트림 URL이 필요합니다. 기존 WebRTC 데모는 PC에서 렌더링한 영상을 폰으로 보내는 별도 모드입니다.
 
-파일 역할
----------
-contracts.py : FrameSource / ImuSource / Engine / Tracker 인터페이스, 프레임·탐지 형식
-inputs.py    : S22 영상 스트림 또는 녹화 영상의 OpenCV 호스트 어댑터
-nu40_transport.py : 기존 NU40 USB·BLE 통신. USB 우선, BLE 구독 유지
-imu.py       : 학습 JSON의 정규화 방향 벡터로 상/하/좌/우 판정
-engines.py   : disabled / ultralytics / clikart 인식 어댑터
-tracking.py  : 인식 엔진과 독립된 ByteTrack / BoT-SORT 어댑터
-pipeline.py  : 인식 → 추적 → 방향 정보 포함 결과 생성
-run.py       : Windows/Linux 진입점. --show를 지정할 때만 외부 영상 창 표시
-config.json  : 카메라·IMU·인식·추적 설정. 경로는 이 설정 파일 폴더 기준
-android/HaneulmaruCore.kt : Android용 입력·엔진·추적 계약, BLE 바이너리 해석,
-                          USB/BLE 선택, 방향 판정, 처리 루프
-assets/nu40-imu-direction-training.json : 기존 학습 JSON 사본
+다른 객체 탐지 데이터셋을 추가하려면 DATASETS.md를 참조하세요. YOLO·COCO 가져오기, 클래스 ID 매핑, 학습 및 --profile로 모델을 교체하는 방법이 있습니다. 아래는 기존 R/B/G 모델 기준입니다.
 
-Windows 실행 준비
------------------
-Python 3.10 이상 설치 후 이 폴더에서 PowerShell을 연다.
+영상 모델 준비
+기존 photo_color_v1의 R/B/G 3클래스 YOLO11 학습 결과 best.pt를 사용합니다. 학습 환경에서 아래와 같이 내보내고 생성한 ONNX 파일을 multidevice_app/models/best.onnx로 복사합니다.
+  yolo export model=best.pt format=onnx imgsz=640 batch=1 dynamic=False half=False nms=False opset=13
+입력 images=FP32 [1,3,640,640], 출력 output0=FP32 [1,7,N], 클래스 순서는 R, B, G입니다. ONNX 파일은 가중치를 포함하는 단일 파일이어야 합니다. 실제 학습된 가중치는 배포물에 없습니다.
 
+Windows에서 영상 인식
+multidevice_app 폴더에서 다음을 실행합니다.
   py -3 -m venv .venv
   .venv\Scripts\python.exe -m pip install -r requirements.txt
+  .venv\Scripts\python.exe run.py --source "S22 카메라 스트림 URL" --show
+  .venv\Scripts\python.exe run.py --source "C:\videos\sample.mp4" --recording --jsonl result.jsonl
+기본 설정에서 PC의 Rust 엔진이 동시에 여러 R/B/G 객체를 탐지하고 Rust 추적기가 프레임 사이의 ID를 연결합니다. 화면에 객체 수, ID, 색상, 신뢰도가 나타납니다. JSONL의 tracks 배열에는 현재 프레임에서 관측한 객체만 기록합니다. 객체의 식별자는 session_id와 id를 함께 사용하세요.
 
-S22 영상 스트림 주소가 있는 경우:
+합성 영상으로 먼저 시험하기
+Windows에서 다중추적_데모.cmd를 실행합니다. 처음 실행할 때 Python 3.10 이상과 패키지 다운로드 연결이 필요합니다. 준비된 환경에서는 아래 명령으로 전체 프레임의 결과를 새 파일에 저장할 수 있습니다.
+  .venv\Scripts\python.exe run.py --config demo/config.json --source demo/multi-tracking.avi --recording --jsonl result.jsonl
+demo/synthetic-peaks.onnx는 이 합성 장면의 색상점을 인식하는 시험용 모델입니다. demo/expected-tracks.jsonl에서 프레임별 정답과 대조한 박스와 ID를 확인할 수 있습니다. 실제 드론 영상에서는 기본 설정과 학습된 models/best.onnx를 사용합니다.
 
-  .venv\Scripts\python.exe run.py --source "S22 영상 주소" --show
+기본 추적기는 관측한 이동 속도와 박스 겹침, 크기, 색상을 비교해 한 객체에 한 ID를 할당합니다. 신뢰도 0.4 이상이면 새 ID를 발급하고, 그 미만의 관측은 기존 ID에만 연결합니다. ID가 아직 없으면 null로 표시합니다. 마지막 관측 후 최대 750ms 동안 후보를 유지합니다. 가려진 프레임에는 박스를 만들지 않습니다. 세션이 새로 시작하거나 해상도가 바뀌면 이전 ID와 구분합니다. 외형이 비슷한 객체의 장시간 가림이나 급격한 카메라 이동에서는 ID가 바뀔 수 있습니다.
+--tracker none은 추적을 끕니다. 선택 가능한 ByteTrack/BoT-SORT를 쓰려면 requirements-inference.txt를 설치하고 --tracker bytetrack 또는 --tracker botsort를 사용하세요. --engine disabled로 영상/센서만 볼 수도 있습니다.
 
-S22 녹화 영상인 경우:
+코드와 연산
+OpenCV/Python은 입력 영상 디코딩과 화면 표시를 담당합니다. Rust 프로세스는 모델을 한 번 로드한 뒤 프레임마다 BGR → RGB letterbox → FP32 텐서 → ONNX Runtime CPU 추론 → 박스 좌표 복원과 NMS를 실행합니다. Rust가 Wi-Fi 센서 패킷과 학습 벡터로 방향을 판정합니다. 기본 다중 객체 추적 연산도 PC의 Rust 실행 파일이 맡습니다. 녹화 영상에는 현재 센서값이 붙지 않습니다. 라이브 영상과 센서는 PC 수신 시각 기준의 근사 연결입니다.
 
-  .venv\Scripts\python.exe run.py --source "C:\videos\s22.mp4" --recording --show
+배포와 빌드
+Windows x64 Rust 실행 파일은 bin/haneulmaru.exe입니다. 표준 Windows System32의 onnxruntime.dll을 사용합니다. 없으면 Microsoft의 ONNX Runtime CPU 라이브러리를 준비하고 HANEULMARU_ORT_LIB에 onnxruntime.dll의 절대 경로를 지정합니다. Linux에서는 libonnxruntime.so를 설치하거나 같은 환경변수에 절대 경로를 지정합니다. 추론 자체에는 Python 학습 환경이 필요하지 않습니다.
+Rust 재빌드: rust 폴더에서 cargo build --release --locked. bin에 배포된 실행 파일이 있으면 새 빌드로 교체하세요.
+Android 재빌드: Android Studio에서 android 폴더를 열고 SDK 35, JDK 17+, Gradle 8.11.1로 assembleDebug를 실행합니다. 기존 Kotlin 파일은 참고용이고 실제 USB 서비스는 src/main/java에 있습니다.
 
-실행.cmd는 영상 입력 주소를 직접 입력받는다. 브라우저 탭은 자동으로 열지 않는다.
-실시간 카메라 연결에는 주소를 제공하는 S22 송신 프로그램이 필요하다.
-이 묶음에는 S22 카메라 송신 앱이 포함되지 않았다. 기존 렌더링 수신 페이지를
-S22 카메라 송신기로 취급하면 안 된다. 추후 CameraX 입력 어댑터를 연결한다.
-장치 번호를 쓸 때도 S22가 실제 영상 장치로 연결된 번호를 지정해야 한다.
-
-기본 engine=disabled는 실제 영상·IMU만 표시하고 탐지 결과는 빈 배열이다.
-출력 engine.ready=false, engine.executed=false, reason으로 미연결을 표시한다.
-이를 '물체 없음'이나 'ClikaRT 실행 성공'으로 해석하지 않는다.
-기본 NU40 USB 식별자는 기존 펌웨어 VID/PID를 따른다. 필요하면
---imu-port COM5처럼 실제 포트를 직접 지정한다. 다른 프로그램이 해당 USB를
-사용하고 있다면 종료 후 실행한다. BLE 이름은 기존 펌웨어의 NU40-IMU이다.
-폰이 BLE를 사용하는 구성에서는 호스트도 동시에 직접 연결할 수 있다고
-가정하지 말고, S22에서 호스트로 센서를 전달하는 ImuSource를 추가한다.
-
-일반 YOLO 연결
---------------
-  .venv\Scripts\python.exe -m pip install -r requirements-inference.txt
-  .venv\Scripts\python.exe run.py --source "S22 영상 주소" --engine ultralytics --model "models/best.pt" --tracker bytetrack --show
-
-기존 photo_color_v1 학습 코드의 R/B/G 3클래스 best.pt를 사용한다.
---tracker botsort로 BoT-SORT를 선택할 수 있다. 별도 ReID 모델을 자동으로
-다운로드하지 않도록 이 어댑터에서는 ReID를 끈다.
-낮은 신뢰도 관측도 추적기에 전달하고 표시 색상은 color_confidence 아래에서
-UNKNOWN으로 바꾼다. 아직 추적 ID를 받지 않은 관측은 id=null이다.
-추적기 버전은 기존 전달 코드와 같은 ultralytics==8.4.63으로 고정했다.
-
-나중에 ClikaRT 연결
-------------------
-1. Windows Python용 SDK와 실행 라이선스를 발급받는다.
-   requirements는 SDK를 자동으로 받거나 설치하지 않는다.
-2. 받은 SDK README에 따라 같은 릴리스의 공식 wheel을 설치한다.
-3. 라이선스 파일은 소스 밖에 보관한다. PowerShell 예시:
-
-     $env:CLIKA_RT_LICENSE = "C:\private\clikart.license"
-
-4. 학습된 YOLO11을 ONNX로 내보낸다.
-   batch=1, imgsz=640, dynamic=False, half=False, nms=False.
-   클래스는 0=R, 1=B, 2=G. 입력 images=[1,3,640,640] FP32.
-   출력 output0=[1,7,N]: cx,cy,w,h,R확률,B확률,G확률.
-   실제 입출력 이름과 모양을 확인하고 다른 형식은 디코더를 별도로 만든다.
-5. 실행 예시:
-
-     .venv\Scripts\python.exe run.py --source "S22 영상 주소" --engine clikart --model "models/best.onnx" --tracker bytetrack --show
-
-ClikaRTEngine은 공식 Python ONNX 진입점에 맞춰 작성했다.
-모델은 한 번 로드하고 프레임마다 letterbox → RGB/FP32/NCHW →
-ClikaRT 추론 → 원본 박스 복원 → NMS → 공통 추적기를 거친다.
-SDK/라이선스/모델 오류 시 다른 엔진으로 조용히 대체하지 않고 중단한다.
-이 PC에는 SDK가 없어 실제 ClikaRT 실행을 수행하지 않았다.
-발급된 SDK API, 지원 연산, 모델 출력 계약 확인은 남아 있다.
-기본 CPU이며 GPU 선택은 받은 SDK와 실제 드라이버에 맞춰 설정한다.
-
-Android 확장
-------------
-HaneulmaruCore.kt는 Android 프로젝트에 넣을 라이브러리 소스이다.
-화면, CameraX 수명주기, BLE 권한/검색/연결, Gradle 프로젝트는 포함하지 않았다.
-SDK 없이 가상의 io.clika 클래스를 만들거나 실행을 흉내 내지 않았다.
-
-추후 Android 앱에서 다음 순서로 연결한다.
-1. CameraX 영상을 회전·미러 해제한 RGB로 바꾸고 CameraFrame을 만든다.
-2. BLE 17바이트 알림을 Nu40Decoder.binary로 읽는다.
-   USB/legacy NDJSON이 필요하면 플랫폼 어댑터를 추가한다.
-3. 같은 학습 JSON의 directions/rate_threshold_dps/similarity_threshold로
-   DirectionClassifier를 만든다.
-4. 공식 Android AAR·라이선스를 초기화하는 실제 SDK 구현을
-   ClikaRtBinding에 넣고 ClikaRtEngine으로 연결한다.
-5. ByteTrack의 Android 구현을 TrackingEngine에 연결한다.
-   현재 NoTracking에는 ID 추적 기능이 없다.
-6. 작업 스레드에서 Pipeline.process를 호출하고 최신 결과만 표시한다.
-   처리 중 들어온 프레임에는 null을 반환한다. 프레임을 계속 쌓지 않는다.
-
-Windows와 Android는 같은 클래스·박스·결과 계약을 사용한다.
-이는 확장 기반이며 '두 기기의 같은 앱에서 ClikaRT 추론 완료'를 입증하지 않는다.
-
-시각·좌표 계약
---------------
-영상은 회전 보정된 원본 픽셀 좌표이고 xyxy는 그 영상 내부의 좌표다.
-Windows의 시각은 OpenCV decode 시점의 host monotonic ms이다.
-USB/BLE t_ms는 보드의 별도 32bit 시계라 카메라 시각과 직접 비교하지 않는다.
-IMU는 추론 전에 얻은 최신 패킷을 쓰고 350ms 이상 오래되면 무효이다.
-imu_alignment=host_arrival_approximate이며 촬영 노출 시각의 정밀 동기화가 아니다.
-녹화 영상에는 현재 실시간 IMU를 붙이지 않는다.
-Android에서는 카메라 시각/센서 수신 시각을 같은 단조 시계로 맞춘다.
-정밀 동기화에는 별도 시계 동기화와 지연 측정이 필요하다.
-이 코드는 IMU로 실제 카메라 자세나 절대 좌표를 보정하지 않는다.
-거리 계산은 후속 작업으로 남겨 range_m=null이다.
-S22 FOV 85도는 축 기준 미확정 메타데이터로 투영에 사용하지 않는다.
-
-다른 코드에서 가져다 쓰기
------------------------
-  from multidevice_app.pipeline import Pipeline
-  from multidevice_app.contracts import Frame
-
-엔진·추적기·방향 판정기를 Pipeline에 주입하고 Frame과 imu_state를 전달한다.
-process()가 결과 dict를 반환한다. 화면·파일·전송 코드는 이를 받아 사용한다.
-JSONL은 --jsonl로 명시할 때만 새 파일에 저장하고 기존 파일을 덮어쓰지 않는다.
-IMU가 끊겨도 영상 처리는 계속되고 방향은 unavailable로 표시한다.
-외부 실행 창에는 x/y/z·각도 대신 UP/DOWN/LEFT/RIGHT만 표시한다.
-
-구현 확인 범위
--------------
-Python 구문 및 기본 계약을 확인했다. 자세한 결과는 검토결과.txt를 참고한다.
-Windows 장치 실행, S22 앱 빌드, 실제 카메라·NU40 연결, 모델 추론,
-ClikaRT 성능 측정은 수행하지 않았다. 펌웨어는 변경하지 않았다.
-
-참고한 공식 문서
-----------------
-https://docs.clika.io/clikart/how-to/run-an-onnx-model/index.html
-https://docs.clika.io/clikart/how-to/use-clikart-from-python/index.html
-https://docs.clika.io/clikart/how-to/package-clikart-in-an-android-app/index.html
-https://docs.clika.io/clikart/getting-started/get-clikart/index.html
-https://github.com/ultralytics/ultralytics/tree/v8.4.63/ultralytics/trackers
-Ultralytics 의존성의 배포 라이선스는 해당 프로젝트 조건을 따른다.
+확인
+rust 폴더에서 cargo test --locked. 저장소 루트에서 python -m unittest multidevice_app.test_rust_host multidevice_app.test_multi_tracking. 검사는 학습된 드론 모델 대신 입력에 따라 출력이 달라지는 소형 ONNX 테스트 그래프를 사용합니다. 대상 S22/NU40의 실물 연결과 실제 학습 모델 정확도는 별도 확인이 필요합니다.

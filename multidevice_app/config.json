@@ -11,25 +11,26 @@
   },
   "imu": {
     "enabled": true,
-    "port": null,
-    "baud": 115200,
-    "ble": true,
-    "ble_address": null,
+    "bind": "0.0.0.0:8793",
     "training_path": "assets/nu40-imu-direction-training.json"
   },
   "engine": {
-    "name": "disabled",
-    "model_path": "models/best.pt",
+    "name": "rust",
+    "model_path": "models/best.onnx",
     "device": "cpu",
     "input_size": 640,
-    "classes": ["R", "B", "G"],
+    "classes": [
+      "R",
+      "B",
+      "G"
+    ],
     "confidence": 0.1,
     "nms_iou": 0.7,
     "input_name": "images",
     "output_name": "output0",
     "output_layout": "yolo11_raw_1_7_n"
   },
-  "tracking": "none",
+  "tracking": "rust",
   "color_confidence": 0.4,
   "reset_tracking_after_gap_ms": 1000
 }

@@ -28,7 +28,8 @@ export class DirectionInput {
     if (!state?.sample || !state.source || !Number.isFinite(state.age_ms) || state.age_ms > 350) { this.reset(); return null; }
     const p = state.sample;
     if (!Number.isInteger(p.t_ms) || p.t_ms<0 || p.t_ms>0xffffffff) { this.reset(); return null; }
-    const match = this.classify([p.gx,p.gy,p.gz]);
+    const result = state.classification;
+    const match = result ? (result.valid && result.direction ? {key:result.direction,rate:result.rate_dps,score:result.similarity} : null) : this.classify([p.gx,p.gy,p.gz]);
     const previous = this.previous;
     const changed = this.source !== state.source || this.session !== state.session;
     this.source = state.source; this.session = state.session; this.previous = p.t_ms;

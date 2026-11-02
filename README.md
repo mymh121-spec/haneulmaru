@@ -1,17 +1,17 @@
 # 하늘마루 · Haneulmaru
 
-## ClikaRT·여러 기기 확장 기반
+## PC Rust 연산과 S22 USB 중계
 
-`multidevice_app/`에 S22 영상 입력, NU40 USB/BLE 입력, 학습된 상하좌우 판정, 인식 엔진, ByteTrack/BoT-SORT 추적, 결과 출력을 분리한 코드가 있습니다. Windows 호스트 실행 코드와 Android 처리 인터페이스를 포함하며 같은 결과 계약을 사용합니다.
+NU40은 S22에 USB로 연결하고 S22가 같은 Wi-Fi·핫스팟의 PC로 센서값을 보냅니다. Windows에서 센서만 실행하려면 `NU40_수신.cmd`를 엽니다. S22에는 `Haneulmaru-USB.apk`를 설치합니다. 기존 웹 데모와 영상 인식 실행 경로도 같은 Rust 수신기를 사용합니다.
 
-**현재는 확장 기반입니다.** ClikaRT SDK·라이선스·학습 모델이 필요하며 실제 ClikaRT 실행과 Android 앱 패키징은 아직 수행하지 않았습니다. S22 실시간 입력에는 별도 카메라 송신기 또는 추후 CameraX 어댑터가 필요합니다. 기존 V4 합성 게임과 별도로 실행합니다.
+같은 화면의 여러 R/B/G 드론을 추적하도록 설정되어 있습니다. Windows에서 `multidevice_app/다중추적_데모.cmd`를 실행하면 동봉된 합성 영상과 시험용 모델로 ID를 확인할 수 있습니다. 실제 드론 영상에는 학습된 R/B/G ONNX 가중치를 사용하세요.
 
-- [구조·Windows 실행·ClikaRT·Android 연결 안내](multidevice_app/구조와실행.txt)
-- [검토 결과와 확인 범위](multidevice_app/검토결과.txt)
-- [설정](multidevice_app/config.json)
-- [공통 처리 코드](multidevice_app/pipeline.py)
-- [Android 연결 계약](multidevice_app/android/HaneulmaruCore.kt)
+- [새 객체 탐지 데이터셋 가져오기, 학습, Rust 모델 교체](multidevice_app/DATASETS.md)
+- [USB 연결, PC IP와 페어링 방법](NU40_연동_사용법.txt)
+- [Rust 영상 인식, ONNX 준비, 빌드와 실행](multidevice_app/구조와실행.txt)
+- [검증 범위](multidevice_app/검토결과.txt)
 
+## 웹 데모
 
 PC에서 합성 3D 지형과 비행체를 렌더링하고 휴대폰으로 WebRTC 영상을 전송하는 데모입니다. 가상환경과 카메라 AR을 전환할 수 있습니다.
 
@@ -34,7 +34,7 @@ PC에서 합성 3D 지형과 비행체를 렌더링하고 휴대폰으로 WebRTC
 - [IMU 참고 파일](IMU_참고)
 - [PC 송신·휴대폰 수신 소스](experiments/haneulmaru_pro)
 
-**NU40 DK + NU-IMU-LSM6DS3TR 직접 연동을 지원합니다.** USB 우선·BLE 동시 연결로 학습된 상하좌우 방향에 따라 시점을 회전합니다. [NU40 연결·실행 안내](NU40_연동_사용법.txt)를 참고하세요. Linux에서는 `bash 실행.sh`, Windows에서는 기존 실행 파일을 사용합니다.
+NU40 방향 입력은 PC Rust에서 처리합니다. [NU40 연결·실행 안내](NU40_연동_사용법.txt)
 
 ## 렌더링·통신
 
@@ -55,7 +55,7 @@ Three.js/WebGL → canvas.captureStream → WebRTC 비디오 → 휴대폰.
 
 Git 저장소에서는 Windows x64 cloudflared 2026.10.0을 첫 실행 때 공식 GitHub 배포본에서 다운로드합니다. 제3자 라이선스 및 버전은 `tools/cloudflared`와 `experiments/haneulmaru_pro/vendor`에 있습니다. 프로젝트 전체에 별도의 오픈소스 라이선스를 부여한 것은 아닙니다.
 
-계정·실행 로그·현재 접속 키는 포함하지 않았습니다. `FILES_SHA256.json`은 전달 파일의 체크섬입니다.
+계정·실행 로그·현재 접속 키는 포함하지 않았습니다. `FILES_SHA256.json`은 Git에 저장된 파일 바이트 기준의 SHA-256 목록입니다. 후속 개선 항목과 완료 기준은 [will_fix.md](will_fix.md)에 있습니다.
 
 ## 드론 색상 탐지·영상 추적 코드
 

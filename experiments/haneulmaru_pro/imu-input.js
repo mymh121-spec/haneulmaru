@@ -4,7 +4,7 @@ import {GyroPose} from './drone-coordinates.js';
 
 const panel=document.createElement('section');
 panel.className='imu-panel';
-panel.innerHTML='<b>NUCODE · IMU</b><p id="imuStatus" role="status">연결 확인 중</p><p id="imuDirection" class="imu-direction">대기</p><div class="modes"><button id="imuToggle" disabled>연결 준비 중</button><button id="imuCenter">시점 초기화</button></div><label>회전 감도 <output id="imuGainText">1.0×</output><input id="imuGain" type="range" min="0.2" max="2" step="0.1" value="1"></label><p class="muted">USB 우선 · BLE 연결 유지<br>학습한 상하좌우 움직임으로 시점을 회전합니다.</p>';
+panel.innerHTML='<b>NUCODE · IMU</b><p id="imuStatus" role="status">연결 확인 중</p><p id="imuDirection" class="imu-direction">대기</p><div class="modes"><button id="imuToggle" disabled>연결 준비 중</button><button id="imuCenter">시점 초기화</button></div><label>회전 감도 <output id="imuGainText">1.0×</output><input id="imuGain" type="range" min="0.2" max="2" step="0.1" value="1"></label><p class="muted">NU40 → 폰 USB → PC Wi-Fi<br>학습한 상하좌우 움직임으로 시점을 회전합니다.</p>';
 document.getElementById('panel').prepend(panel);
 const $=id=>document.getElementById(id);
 const token=location.hash.slice(1)||sessionStorage.getItem('pro-stream-host')||'';
@@ -26,9 +26,8 @@ async function poll() {
   if(stopped)return;
   try {
     const state=await api('imu');
-    const usb=state.sources.USB,ble=state.sources.BLE;
-    $('imuStatus').textContent=(state.source?state.source+' 수신 중':'IMU 데이터 대기')+' · BLE '+(ble.fresh?'수신 유지':ble.connected?'연결됨':'재연결 대기');
-    $('imuStatus').title='USB: '+usb.message+' / BLE: '+ble.message;
+    $('imuStatus').textContent=state.source?'폰 USB → Wi-Fi 수신 중':'폰 USB → Wi-Fi 입력 대기';
+    $('imuStatus').title='PC UDP 수신기에서 표시한 키를 폰에 입력하세요.';
     if(!classifier) {
       const model=await api('imu-model');
       classifier=new DirectionInput(model);
