@@ -6,7 +6,7 @@ NU40은 S22에 USB로 연결하고 S22가 같은 Wi-Fi·핫스팟의 PC로 센�
 
 같은 화면의 여러 R/B/G 드론을 추적하도록 설정되어 있습니다. Windows에서 `multidevice_app/다중추적_데모.cmd`를 실행하면 동봉된 합성 영상과 시험용 모델로 ID를 확인할 수 있습니다. 실제 드론 영상에는 학습된 R/B/G ONNX 가중치를 사용하세요.
 
-- [새 객체 탐지 데이터셋 가져오기, 학습, Rust 모델 교체](multidevice_app/DATASETS.md)
+- [로컬 YOLO·COCO와 Hugging Face·HTTP API 데이터셋 가져오기, 학습, Rust 모델 교체](multidevice_app/DATASETS.md)
 - [USB 연결, PC IP와 페어링 방법](NU40_연동_사용법.txt)
 - [Rust 영상 인식, ONNX 준비, 빌드와 실행](multidevice_app/구조와실행.txt)
 - [검증 범위](multidevice_app/검토결과.txt)

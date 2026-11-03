@@ -24,6 +24,50 @@ python -m multidevice_app.datasets coco --train incoming/train.json incoming/tra
 
 **다른 형식을 추가할 때**는 `multidevice_app/datasets.py`의 두 리더처럼 클래스 목록과 분할별 `Sample(image, boxes)`를 반환하는 리더를 연결합니다. `boxes`는 연속 클래스 ID와 정규화한 중심 x/y, 너비, 높이입니다. 같은 `write_dataset`이 출력과 공통 검사를 담당합니다.
 
+### API에서 데이터 받기
+
+원격 데이터는 가져오기 명령을 실행할 때 내려받습니다. 결과 폴더에 같은 `data.yaml`과 `profile.json`이 생성되므로 학습·Rust 추적 명령은 로컬 데이터와 같습니다. `source.json`에는 제공자, 확인된 리비전, 클래스 ID 매핑, 분할별 이미지·박스 수, 적용한 샘플 제한이 남습니다.
+
+**Hugging Face.** 동봉된 예시는 공개 양 탐지 데이터셋에서 `train`과 `validation`을 가져옵니다. 먼저 각 분할에서 3장만 받아 검사할 수 있습니다.
+
+```powershell
+python -m multidevice_app.datasets remote --source multidevice_app/examples/hf-sheep.json --output imported/sheep-sample --limit-per-split 3
+```
+
+전체 분할을 가져올 때는 `--limit-per-split`을 빼고 새 출력 폴더를 지정하세요. 다른 Hub 데이터셋은 예시 JSON을 복사해 `dataset`, `config`, `splits`, `classes`, `fields`, `bbox_format`을 변경합니다. Dataset Viewer의 `/rows`에 게시된 데이터셋을 지원하며 페이지당 1~100행을 요청합니다. `ClassLabel` 메타데이터가 있으면 설정된 ID/이름과 비교합니다. 모든 페이지의 `X-Revision`이 같아야 하며 `revision`을 설정하면 해당 값과도 일치해야 합니다. 이 옵션은 현재 제공 중인 버전을 확인하는 용도이며 과거 버전을 내려받는 기능은 아닙니다. [Hugging Face API 문서](https://huggingface.co/docs/dataset-viewer/rows) · [예시 원본 데이터](https://huggingface.co/datasets/keremberke/aerial-sheep-object-detection)
+
+**일반 HTTP API.** [HTTP 설정 예시](examples/http-detections.json)를 복사해 `base_url`, 분할별 첫 페이지 경로와 행 필드를 실제 서비스에 맞춥니다. 예시의 주소는 자리표시자입니다.
+
+```powershell
+python -m multidevice_app.datasets remote --source my-api.json --output imported/my-dataset
+```
+
+기본 페이지 응답 예시는 다음과 같습니다. 마지막 페이지에는 `"next": null`을 넣습니다. 다음 URL은 상대 또는 절대 경로를 사용할 수 있습니다.
+
+```json
+{
+  "items": [
+    {
+      "id": "sample-17",
+      "image_url": "https://images.example.org/17.png",
+      "annotations": [{"box": [10, 20, 90, 70], "category_id": 70}]
+    }
+  ],
+  "next": "?split=train&after=17"
+}
+```
+
+| 설정 항목 | 의미 |
+|---|---|
+| `splits` | 로컬 `train`, `val`, 선택적 `test`를 서로 다른 원격 분할 이름(Hub) 또는 첫 페이지 경로(HTTP)에 연결합니다. |
+| `fields` | 행 ID, 이미지, 박스 배열, 라벨 배열을 지정합니다. Hub에서는 ID 경로를 생략하면 해당 분할의 Viewer 행 번호를 씁니다. `annotations.box`처럼 중첩된 객체 목록을 읽을 수 있습니다. 이미지 값은 URL 문자열 또는 `src`가 있는 객체입니다. 빈 박스·라벨 배열은 배경 이미지로 처리합니다. |
+| `classes`, `category_ids` | 클래스 이름을 YOLO 순서대로 나열합니다. 원격 정수 ID가 5, 70처럼 불연속이면 같은 순서로 `category_ids`를 지정합니다. 라벨 값이 클래스 이름 문자열인 API도 지원합니다. |
+| `bbox_format` | 픽셀 단위의 좌상단·너비·높이는 `xywh_pixels`, 양 모서리는 `xyxy_pixels`, 정규화된 중심·너비·높이는 `cxcywh_normalized`입니다. 다운로드한 이미지 크기를 기준으로 경계를 자르고 빈 박스는 거부합니다. 주석 기준 크기를 제공하면 `fields.width`와 `fields.height`를 함께 설정하세요. 실제 크기가 다르면 해당 행에서 중단합니다. |
+| `pagination` | HTTP 응답의 배열·이어서 읽을 값의 필드명을 바꿀 수 있습니다. 예를 들어 `{"items":"data.samples","next":"links.next_cursor","cursor_param":"after"}`로 설정하면 커서 문자열을 다음 요청의 `after` 쿼리로 보냅니다. `cursor_param`을 생략하면 다음 값은 URL입니다. |
+| `token_env`, `asset_origins` | 인증이 필요한 경우 환경변수 **이름**을 지정합니다. Bearer 토큰은 API와 같은 프로토콜·호스트·포트에만 보냅니다. 이미지를 다른 호스트에서 내려받으려면 해당 origin을 명시하세요. 그 호스트에는 API 토큰을 보내지 않으므로 공개 이미지 또는 서명된 URL을 사용해야 합니다. |
+
+API와 이미지 다운로드에는 HTTPS를 사용합니다. 로컬 시험용 루프백 주소는 HTTP도 허용합니다. 연결 오류와 일부 일시적 HTTP 오류는 최대 3회 시도합니다. 중복 페이지·행 ID, 동일 이미지 바이트, 잘린 Hub 응답, 리비전 변경, 잘못된 이미지·박스가 발견되면 최종 폴더를 게시하지 않습니다. 오류 원인을 바로잡은 후 처음부터 다시 실행합니다. HTTP 서버가 `X-Revision`을 제공하지 않으면 출력에 리비전을 `null`로 기록합니다. `source.json`에는 토큰이나 이미지의 서명 URL을 저장하지 않습니다.
+
 ## 2. 학습하고 ONNX로 내보내기
 
 학습은 별도 단계입니다. Ultralytics 학습 환경에서 생성한 YAML로 탐지 모델을 학습합니다. 아래는 YOLO11 탐지 모델 예시입니다.

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "provider": "http",
+  "base_url": "https://api.example.org/v1/",
+  "splits": {"train": "images?split=train", "val": "images?split=validation"},
+  "classes": ["상자", "표지판"],
+  "category_ids": [5, 70],
+  "bbox_format": "xyxy_pixels",
+  "fields": {"id": "id", "image": "image_url", "boxes": "annotations.box", "labels": "annotations.category_id"},
+  "asset_origins": ["https://images.example.org"],
+  "token_env": "HANEULMARU_DATA_TOKEN"
+}

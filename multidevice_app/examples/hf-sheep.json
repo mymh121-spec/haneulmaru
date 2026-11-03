@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "provider": "huggingface",
+  "dataset": "keremberke/aerial-sheep-object-detection",
+  "config": "default",
+  "splits": {"train": "train", "val": "validation"},
+  "classes": ["sheep"],
+  "bbox_format": "xywh_pixels",
+  "fields": {"id": "image_id", "width": "width", "height": "height"},
+  "page_size": 50
+}

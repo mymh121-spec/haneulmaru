@@ -1,4 +1,4 @@
-"""Import local bounding-box datasets for YOLO training and Rust inference."""
+"""Import bounding-box datasets for YOLO training and Rust inference."""
 import argparse
 from dataclasses import dataclass
 import json
@@ -153,7 +153,7 @@ def label_line(row, class_count, source):
     return f"{cls} {cx:.10g} {cy:.10g} {w:.10g} {h:.10g}\n"
 
 
-def write_dataset(output, names, splits):
+def write_dataset(output, names, splits, *, source_info=None):
     validate_classes(names)
     output = output.resolve()
     if output.exists():
@@ -190,22 +190,33 @@ def write_dataset(output, names, splits):
         profile = dict(schema_version=1, model_path="best.onnx", classes=names, input_size=640,
                        input_name="images", output_name="output0", output_layout="yolo_raw", agnostic_nms=False)
         (stage / "profile.json").write_text(json.dumps(profile, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if source_info is not None:
+            metadata = {**source_info, "classes": names, "counts": counts}
+            (stage / "source.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         stage.rename(output)
     return counts
 
 
 def main():
-    parser = argparse.ArgumentParser(description="로컬 객체 탐지 데이터셋 → YOLO 학습 폴더 + Rust 모델 프로필")
+    parser = argparse.ArgumentParser(description="객체 탐지 데이터셋 → YOLO 학습 폴더 + Rust 모델 프로필")
     commands = parser.add_subparsers(dest="format", required=True)
     yolo = commands.add_parser("yolo")
     yolo.add_argument("--data", type=Path, required=True, help="YOLO data.yaml")
     coco = commands.add_parser("coco")
     for split in SPLITS:
         coco.add_argument("--" + split, nargs=2, metavar=("INSTANCES_JSON", "IMAGES_ROOT"), required=split != "test")
-    for sub in (yolo, coco):
+    remote = commands.add_parser("remote", help="Hugging Face 또는 JSON API에서 가져오기")
+    remote.add_argument("--source", type=Path, required=True, help="원격 데이터 소스 JSON")
+    remote.add_argument("--limit-per-split", type=int, help="분할별 최대 행 수 (시험용)")
+    for sub in (yolo, coco, remote):
         sub.add_argument("--output", type=Path, required=True, help="새 출력 폴더")
     args = parser.parse_args()
     try:
+        if args.format == "remote":
+            from .remote_datasets import import_remote
+            counts = import_remote(args.source, args.output, args.limit_per_split)
+            print(json.dumps({"output": str(args.output.resolve()), "splits": counts}, ensure_ascii=False))
+            return
         if args.format == "yolo":
             names, splits = read_yolo(args.data)
         else:
