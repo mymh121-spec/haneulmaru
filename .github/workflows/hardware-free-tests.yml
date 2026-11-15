@@ -1,0 +1,53 @@
+name: Hardware-free regression tests
+
+on:
+  push:
+    paths:
+      - 'multidevice_app/**'
+      - '.github/workflows/hardware-free-tests.yml'
+  pull_request:
+    paths:
+      - 'multidevice_app/**'
+      - '.github/workflows/hardware-free-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU test dependencies
+        run: python -m pip install -r multidevice_app/requirements.txt onnxruntime==1.23.2
+      - name: Test and build Rust worker
+        working-directory: multidevice_app/rust
+        run: |
+          cargo test --locked
+          cargo build --release --locked
+      - name: Select CPU runtime and freshly built worker
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import shutil
+          import onnxruntime
+          capi = Path(onnxruntime.__file__).parent / 'capi'
+          pattern = 'onnxruntime.dll' if os.name == 'nt' else 'libonnxruntime.so*'
+          runtime = next(capi.glob(pattern)).resolve()
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env:
+              env.write(f'HANEULMARU_ORT_LIB={runtime}\n')
+          if os.name == 'nt':
+              shutil.copyfile('multidevice_app/rust/target/release/haneulmaru.exe',
+                              'multidevice_app/bin/haneulmaru.exe')
+      - name: Test pipes, retries, datasets and 48-frame AVI
+        run: python -m unittest discover -s multidevice_app -t . -p "test_*.py" -v

@@ -63,7 +63,7 @@ class ProfileTests(unittest.TestCase):
             paths={}
             for split in ["train","val"]:
                 fname=split+".png"
-                Image.new("RGB",(20,10)).save(root/fname)
+                Image.new("RGB",(20,10), "red" if split == "train" else "blue").save(root/fname)
                 categories=[{"id":70,"name":"표지판"},{"id":5,"name":"crate"}]
                 if split=="val": categories.reverse()
                 doc=dict(images=[dict(id=3,file_name=fname,width=20,height=10)],categories=categories,

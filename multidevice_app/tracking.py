@@ -1,8 +1,8 @@
 from dataclasses import replace
 import json
-import subprocess
 from .contracts import SetupError
-from .rust_host import binary, close_worker
+from .rust_host import binary
+from .worker import PipeWorker, timeout_seconds
 
 
 class NoTracking:
@@ -14,29 +14,35 @@ class NoTracking:
 
 
 class RustTracking:
-    def __init__(self):
+    def __init__(self, request_timeout_s=5):
         self.proc = None
+        self.worker = None
+        self.request_timeout = timeout_seconds(request_timeout_s)
 
     def update(self, frame, detections):
-        if self.proc is None:
-            self.proc = subprocess.Popen([binary(), "track"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         message = {"timestamp_ms": frame.timestamp_ms, "detections": [d.packet() for d in detections]}
+        payload = json.dumps(message, allow_nan=False).encode() + b"\n"
+        if self.worker is None:
+            self.worker = PipeWorker([binary(), "track"])
+            self.proc = self.worker.proc
         try:
-            self.proc.stdin.write(json.dumps(message, allow_nan=False).encode() + b"\n")
-            self.proc.stdin.flush()
-            line = self.proc.stdout.readline()
-            if not line:
-                raise SetupError("Rust 추적기가 종료되었습니다. PC 콘솔의 오류를 확인하세요.")
+            line = self.worker.exchange(payload, self.request_timeout, "Rust tracking")
             ids = json.loads(line)
-            if not isinstance(ids, list) or len(ids) != len(detections):
-                raise SetupError("Rust 추적 결과 개수가 탐지 결과와 다릅니다.")
+            if (not isinstance(ids, list) or len(ids) != len(detections) or
+                    any(i is not None and (type(i) is not int or i <= 0) for i in ids) or
+                    len({i for i in ids if i is not None}) != sum(i is not None for i in ids)):
+                raise SetupError("Rust 추적 결과의 ID 또는 개수가 잘못되었습니다.")
             return [replace(d, id=track_id) for d, track_id in zip(detections, ids)]
-        except OSError as exc:
-            raise SetupError("Rust 추적 프로세스 연결이 끊겼습니다.") from exc
+        except (SetupError, ValueError, TypeError) as exc:
+            self.reset()
+            if isinstance(exc, SetupError):
+                raise
+            raise SetupError("Rust tracking returned an invalid response") from exc
 
     def reset(self):
-        if self.proc is not None:
-            close_worker(self.proc)
+        if self.worker is not None:
+            self.worker.close()
+            self.worker = None
             self.proc = None
 
     close = reset

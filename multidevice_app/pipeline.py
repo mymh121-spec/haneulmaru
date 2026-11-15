@@ -12,6 +12,7 @@ class Pipeline:
         self.color_confidence, self.max_gap_ms = color_confidence, max_gap_ms
         self.session = uuid.uuid4().hex
         self.previous = None
+        self.tracking_uncertain = False
 
     def process(self, frame, imu_state, attach_live_imu=True):
         import math
@@ -23,11 +24,9 @@ class Pipeline:
         if self.previous and frame.sequence <= self.previous[0]:
             raise ValueError("Frames must be ordered")
         shape = frame.image.shape[:2]
-        if self.previous and (frame.timestamp_ms < self.previous[1] or
-                              frame.timestamp_ms - self.previous[1] > self.max_gap_ms or shape != self.previous[2]):
-            self.tracker.reset()
-            self.session = uuid.uuid4().hex
-        self.previous = frame.sequence, frame.timestamp_ms, shape
+        reset_needed = self.tracking_uncertain or (self.previous and (
+            frame.timestamp_ms < self.previous[1] or
+            frame.timestamp_ms - self.previous[1] > self.max_gap_ms or shape != self.previous[2]))
         # Snapshot/classify before inference. Never attach a newer IMU sample
         # merely because inference for this frame finished late.
         imu = ((imu_state["classification"] if isinstance(imu_state, dict) and "classification" in imu_state
@@ -39,6 +38,13 @@ class Pipeline:
         height, width = frame.image.shape[:2]
         for detection in detections:
             detection.validate(width, height)
+        # Detection failures are retryable in the current session. Once the
+        # tracker has seen a frame, its state is uncertain until all output is
+        # validated. Never replay that observation into the same tracker.
+        self.tracking_uncertain = True
+        if reset_needed:
+            self.tracker.reset()
+            self.session = uuid.uuid4().hex
         tracks = self.tracker.update(frame, detections)
         output = []
         for track in tracks:
@@ -48,6 +54,8 @@ class Pipeline:
             if entry["confidence"] < self.color_confidence:
                 entry["code"] = "UNKNOWN"
             output.append(entry)
+        self.previous = frame.sequence, frame.timestamp_ms, shape
+        self.tracking_uncertain = False
         return dict(schema_version=1, app="haneulmaru", session_id=self.session,
                     frame_sequence=frame.sequence, frame_timestamp_ms=frame.timestamp_ms,
                     timestamp_basis=frame.timestamp_basis, image_size_px=[width, height],

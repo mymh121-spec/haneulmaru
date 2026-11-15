@@ -1,5 +1,6 @@
 """Pixel-based synthetic integration test for the PC detection and tracking pipeline."""
 import json
+import importlib.util
 import struct
 import tempfile
 import unittest
@@ -78,6 +79,35 @@ def pipeline_for_clip(root):
 
 
 class MultiObjectTests(unittest.TestCase):
+    @unittest.skipUnless(importlib.util.find_spec("cv2"), "OpenCV is required for the AVI regression")
+    def test_bundled_video_matches_all_reference_tracks(self):
+        demo = ROOT / "demo"
+        config = json.loads((demo / "config.json").read_text(encoding="utf-8"))
+        model = json.loads((demo / config["imu"]["training_path"]).read_text(encoding="utf-8"))
+        pipeline = Pipeline(RustEngine(config["engine"], demo), create_tracker(config["tracking"]),
+                            DirectionClassifier(model), config["color_confidence"],
+                            config["reset_tracking_after_gap_ms"])
+        self.addCleanup(pipeline.close)
+        source = OpenCVSource(demo / "multi-tracking.avi", recording=True)
+        self.addCleanup(source.close)
+        expected = [json.loads(line) for line in (demo / "expected-tracks.jsonl").read_text().splitlines()]
+        self.assertEqual(len(expected), 48)
+        count, session = 0, None
+        for reference in expected:
+            frame = source.read()
+            self.assertIsNotNone(frame)
+            result = pipeline.process(frame, {}, attach_live_imu=False)
+            self.assertEqual(result["frame_sequence"], reference["frame"])
+            self.assertAlmostEqual(result["frame_timestamp_ms"], reference["time_ms"], places=4)
+            actual = [dict(id=t["id"], code=t["code"], xyxy=list(t["xyxy"])) for t in result["tracks"]]
+            self.assertEqual(actual, reference["tracks"], reference["frame"])
+            session = result["session_id"] if session is None else session
+            self.assertEqual(result["session_id"], session)
+            self.assertFalse(result["imu"]["valid"])
+            count += len(actual)
+        self.assertIsNone(source.read())
+        self.assertEqual(count, 177)
+
     def test_recording_uses_video_time_instead_of_processing_speed(self):
         cv2 = Mock()
         capture = cv2.VideoCapture.return_value

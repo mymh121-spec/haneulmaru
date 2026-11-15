@@ -1,5 +1,6 @@
 """Import bounding-box datasets for YOLO training and Rust inference."""
 import argparse
+import hashlib
 from dataclasses import dataclass
 import json
 import math
@@ -8,6 +9,7 @@ import shutil
 import tempfile
 
 import yaml
+from PIL import Image
 from .contracts import SetupError
 from .model_profile import validate_classes
 
@@ -19,6 +21,24 @@ SPLITS = ("train", "val", "test")
 class Sample:
     image: Path
     boxes: list[tuple[int, float, float, float, float]]
+    clipped_boxes: int = 0
+
+
+def image_size(path):
+    try:
+        with Image.open(path) as image:
+            image.load()
+            return image.size
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"Unreadable dataset image: {path}") from exc
+
+
+def content_hash(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def yolo_names(names):
@@ -72,6 +92,7 @@ def yolo_samples(entry, root, count):
                 x, y, w, h = map(float, fields[1:])
                 if not all(math.isfinite(v) and 0 <= v <= 1 for v in (x, y, w, h)) or min(w,h) <= 0:
                     raise ValueError(f"{label}:{line_no}: invalid normalized box")
+                label_line((int(fields[0]), x, y, w, h), count, f"{label}:{line_no}")
                 rows.append((int(fields[0]), x, y, w, h))
         yield Sample(image, rows)
 
@@ -100,6 +121,9 @@ def coco_samples(data, root, category_ids):
         path = (root / img["file_name"]).resolve()
         if not path.is_relative_to(root) or not path.is_file() or path.suffix.lower() not in IMAGE_TYPES:
             raise ValueError(f"Invalid COCO image path: {path}")
+        actual = image_size(path)
+        if actual != (w, h):
+            raise ValueError(f"COCO image dimensions mismatch: {path}: annotation={(w, h)}, actual={actual}")
         images[image_id] = (Sample(path, []), w, h)
     for ann in data["annotations"]:
         if ann.get("iscrowd", 0):
@@ -113,7 +137,9 @@ def coco_samples(data, root, category_ids):
         x1, y1 = max(0, x), max(0, y)
         x2, y2 = min(width, x + w), min(height, y + h)
         if x2 <= x1 or y2 <= y1:
-            raise ValueError(f"COCO bbox outside image: {ann['bbox']}")
+            raise ValueError(f"COCO bbox outside image: {rec.image}: {ann['bbox']}")
+        if (x1, y1, x2, y2) != (x, y, x + w, y + h):
+            rec.clipped_boxes += 1
         cls = category_ids[ann["category_id"]]
         rec.boxes.append((cls, (x1 + x2) / (2 * width), (y1 + y2) / (2 * height),
                           (x2 - x1) / width, (y2 - y1) / height))
@@ -150,6 +176,9 @@ def label_line(row, class_count, source):
         math.isfinite(v) and 0 <= v <= 1 for v in (cx, cy, w, h)
     ) or min(w, h) <= 0:
         raise ValueError(f"Invalid normalized detection box in {source}: {row}")
+    # Tiny tolerance accepts rounding at an image edge, not out-of-frame boxes.
+    if min(cx - w / 2, cy - h / 2) < -1e-9 or max(cx + w / 2, cy + h / 2) > 1 + 1e-9:
+        raise ValueError(f"Normalized box outside image in {source}: {row}")
     return f"{cls} {cx:.10g} {cy:.10g} {w:.10g} {h:.10g}\n"
 
 
@@ -161,7 +190,7 @@ def write_dataset(output, names, splits, *, source_info=None):
     if not {"train", "val"} <= splits.keys() <= set(SPLITS):
         raise ValueError("Expected train, val and optionally test splits")
     output.parent.mkdir(parents=True, exist_ok=True)
-    counts, seen = {}, set()
+    counts, seen, hashes, records = {}, set(), {}, []
     with tempfile.TemporaryDirectory(dir=output.parent, prefix=".dataset-") as tmp:
         stage = Path(tmp) / "dataset"
         for split, samples in splits.items():
@@ -177,10 +206,19 @@ def write_dataset(output, names, splits, *, source_info=None):
                 seen.add(source)
                 image_count += 1
                 stem = f"{image_count:07d}"
-                shutil.copyfile(source, images / (stem + source.suffix.lower()))
+                destination = images / (stem + source.suffix.lower())
+                shutil.copyfile(source, destination)
+                dimensions = image_size(destination)
+                digest = content_hash(destination)
+                if digest in hashes:
+                    other_split, other_source = hashes[digest]
+                    raise ValueError(f"Duplicate image content: {split}:{source} matches {other_split}:{other_source}")
+                hashes[digest] = (split, source)
                 lines = [label_line(row, len(names), source) for row in rec.boxes]
                 (labels / (stem + ".txt")).write_text("".join(lines), encoding="utf-8")
                 box_count += len(lines)
+                records.append(dict(split=split, source=str(source), sha256=digest,
+                                    image_size_px=list(dimensions), boxes=len(lines), clipped_boxes=rec.clipped_boxes))
             if not image_count or (split == "train" and not box_count):
                 raise ValueError(f"{split}: empty split or no trainable boxes")
             counts[split] = {"images": image_count, "boxes": box_count}
@@ -190,6 +228,10 @@ def write_dataset(output, names, splits, *, source_info=None):
         profile = dict(schema_version=1, model_path="best.onnx", classes=names, input_size=640,
                        input_name="images", output_name="output0", output_layout="yolo_raw", agnostic_nms=False)
         (stage / "profile.json").write_text(json.dumps(profile, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        report = dict(schema_version=1, counts=counts, duplicate_policy="reject_identical_bytes",
+                      box_policy=dict(yolo="reject_outside", coco="clip_partial_reject_outside"),
+                      clipped_boxes=sum(r["clipped_boxes"] for r in records), samples=records)
+        (stage / "validation_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         if source_info is not None:
             metadata = {**source_info, "classes": names, "counts": counts}
             (stage / "source.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

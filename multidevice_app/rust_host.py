@@ -10,6 +10,7 @@ import time
 
 from .contracts import Detection, SetupError
 from .model_profile import detector_options
+from .worker import PipeWorker, timeout_seconds
 
 ROOT = Path(__file__).resolve().parent
 
@@ -23,19 +24,6 @@ def binary():
     raise SetupError("Rust 실행 파일이 없습니다. multidevice_app/rust에서 cargo build --release --locked를 실행하세요.")
 
 
-def close_worker(proc):
-    try:
-        proc.stdin.close()
-    except OSError:
-        pass
-    try:
-        proc.wait(timeout=3)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
-    proc.stdout.close()
-
-
 class RustEngine:
     name, ready, reason = "rust", True, None
 
@@ -46,34 +34,37 @@ class RustEngine:
         if config.get("device", "cpu") != "cpu":
             raise SetupError("Rust 엔진은 CPU를 사용합니다.")
         options = detector_options(config)
-        self.proc = subprocess.Popen([binary(), "detect-profile", str(model), str(config["input_size"]),
-            str(config["confidence"]), str(config["nms_iou"]), config["input_name"], config["output_name"]],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        startup_timeout = timeout_seconds(config.get("startup_timeout_s", 30))
+        self.request_timeout = timeout_seconds(config.get("request_timeout_s", 5))
+        self.worker = PipeWorker([binary(), "detect-profile", str(model), str(config["input_size"]),
+            str(config["confidence"]), str(config["nms_iou"]), config["input_name"], config["output_name"]])
+        self.proc = self.worker.proc
         try:
-            self.proc.stdin.write(json.dumps(options, ensure_ascii=True).encode() + b"\n")
-            self.proc.stdin.flush()
-            ready = self.proc.stdout.readline().strip() == b"ready"
-        except OSError:
-            ready = False
-        if not ready:
+            ready = self.worker.exchange(json.dumps(options, ensure_ascii=True).encode() + b"\n",
+                                         startup_timeout, "Rust model startup")
+            if ready.strip() != b"ready":
+                raise SetupError("Rust에서 ONNX 모델을 열 수 없습니다. 위의 런타임 메시지를 확인하세요.")
+        except Exception:
             self.close()
-            raise SetupError("Rust에서 ONNX 모델을 열 수 없습니다. 위의 런타임 메시지를 확인하세요.")
+            raise
 
     def detect(self, frame):
         h, w = frame.image.shape[:2]
         try:
-            self.proc.stdin.write(struct.pack("<II", w, h))
-            self.proc.stdin.write(frame.image.tobytes(order="C"))
-            self.proc.stdin.flush()
-            result = self.proc.stdout.readline()
-            if not result:
-                raise SetupError("Rust 추론이 종료되었습니다. 모델 입출력 형식과 런타임 메시지를 확인하세요.")
-            return [Detection(d["code"], d["confidence"], tuple(d["xyxy"])) for d in json.loads(result)]
-        except (BrokenPipeError, OSError) as exc:
-            raise SetupError("Rust 추론 작업자 연결이 끊겼습니다.") from exc
+            result = self.worker.exchange(struct.pack("<II", w, h) + frame.image.tobytes(order="C"),
+                                          self.request_timeout, "Rust frame inference")
+            decoded = json.loads(result)
+            if not isinstance(decoded, list):
+                raise ValueError("Expected a detection list")
+            return [Detection(d["code"], d["confidence"], tuple(d["xyxy"])).validate(w, h) for d in decoded]
+        except SetupError:
+            raise
+        except (ValueError, TypeError, KeyError) as exc:
+            self.close()
+            raise SetupError("Rust inference returned an invalid detection response") from exc
 
     def close(self):
-        close_worker(self.proc)
+        self.worker.close()
 
 
 class WifiImu:
