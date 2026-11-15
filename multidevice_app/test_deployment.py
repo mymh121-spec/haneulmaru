@@ -35,7 +35,8 @@ class DeploymentTests(unittest.TestCase):
     def test_seal_preserves_model_location_policy_and_aliases(self):
         path = self.seal()
         cfg = load_profile(path)
-        self.assertEqual(Path(cfg["model_path"]).resolve(), self.weights)
+        # Windows runners may expose the same temp directory through an 8.3 alias.
+        self.assertTrue(Path(cfg["model_path"]).samefile(self.weights))
         self.assertEqual(cfg["display_names"], {"crate": "상자"})
         self.assertEqual(cfg["class_change_policy"], "strict")
         self.assertEqual(verify_model(cfg, self.weights)["status"], "verified")

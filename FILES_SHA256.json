@@ -98,7 +98,7 @@
   "multidevice_app/rust/src/vision.rs": "2cb1a475f3e6d5e6d5191d0987f2722a20f6a1c1395ec798b3926be1daa21183",
   "multidevice_app/rust_host.py": "0ca5747cea3aafe88961d526c4dbf697eef0930c87bf62865c783f1c844bde34",
   "multidevice_app/test_dataset_validation.py": "aeb3ef7ed1a5135b5c612121d6178295882bc8289f2aec4ee6202ced506c6263",
-  "multidevice_app/test_deployment.py": "e30726fdde5348e0933bf148aefc95c9c1f9c2db3e93fff8c229a4862e42b05a",
+  "multidevice_app/test_deployment.py": "90b7467561ebdae89b039ff82d64bcfe3cca61273a6338ef2109aa19ad2d1e4d",
   "multidevice_app/test_imu_timing.py": "b87380bbf9f2105017184844e25b59b92333b89108cebd3687772b4fdc2ce68e",
   "multidevice_app/test_model_profiles.py": "0edc1dca605db41bad05727a517f930f7a63ff15b88914d0e81fd29172dfd3e6",
   "multidevice_app/test_multi_tracking.py": "766f6e5e84429bffda8918573e10f975500ad85d78a45c29e298d3c0ead426f2",
