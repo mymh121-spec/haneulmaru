@@ -95,7 +95,9 @@ class WifiImu:
             if ready.get("protocol_version") != 2:
                 raise SetupError("IMU 수신 시간 검증을 위해 Rust 작업자를 다시 빌드하세요 (protocol_version=2).")
             self.address = ready["address"]
-            self.started_at = time.monotonic()
+            # Older Python on Windows uses coarse GetTickCount64 for monotonic().
+            # Use the high-resolution performance clock for Rust elapsed times.
+            self.started_at = time.perf_counter()
             synced = self.worker.exchange(b"sync\n", self.startup_timeout, "Rust IMU clock sync")
             if json.loads(synced).get("event") != "clock_synced":
                 raise SetupError("Rust IMU 시계 동기화 실패")
@@ -125,7 +127,7 @@ class WifiImu:
         # Parent sync request precedes the Rust clock origin. This is a conservative
         # lower bound on arrival time, independent of pipe delivery delays.
         arrived = self.started_at + elapsed / 1000
-        if arrived > time.monotonic():
+        if arrived > time.perf_counter():
             return
         with self.lock:
             if self.latest is None or arrived >= self.latest[0]:
@@ -134,7 +136,7 @@ class WifiImu:
     def snapshot(self):
         with self.lock:
             item = self.latest
-        age = (time.monotonic() - item[0]) * 1000 if item else None
+        age = (time.perf_counter() - item[0]) * 1000 if item else None
         fresh = item is not None and 0 <= age <= 350
         event = item[1] if item else {}
         classification = (dict(valid=True, direction=event["direction"], rate_dps=event["rate_dps"],

@@ -82,6 +82,6 @@ class RustHostTests(unittest.TestCase):
 
     def test_stale_samples_expire(self):
         hub = WifiImu()
-        hub.latest = time.monotonic() - 0.5, {"session": "s"}
+        hub.latest = time.perf_counter() - 0.5, {"session": "s"}
         self.assertIsNone(hub.snapshot()["sample"])
         self.assertFalse(hub.snapshot()["classification"]["valid"])

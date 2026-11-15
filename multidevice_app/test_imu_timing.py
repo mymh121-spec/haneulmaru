@@ -15,24 +15,34 @@ def sample(elapsed):
 
 
 class ImuTimingTests(unittest.TestCase):
+    def test_subtick_fresh_sample_is_not_rejected_as_future(self):
+        hub = WifiImu()
+        hub.started_at = 100.
+        with patch("multidevice_app.rust_host.time.monotonic", return_value=100.), patch(
+            "multidevice_app.rust_host.time.perf_counter", return_value=100.006
+        ):
+            hub._accept_event(sample(5))
+            self.assertTrue(hub.snapshot()["classification"]["valid"])
+            self.assertAlmostEqual(hub.snapshot()["age_ms"], 1)
+
     def test_pipe_delay_does_not_rejuvenate_old_samples(self):
         hub = WifiImu()
         hub.started_at = 100.
-        with patch("multidevice_app.rust_host.time.monotonic", return_value=101.):
+        with patch("multidevice_app.rust_host.time.perf_counter", return_value=101.):
             hub._accept_event(sample(500))
             self.assertFalse(hub.snapshot()["classification"]["valid"])
-        with patch("multidevice_app.rust_host.time.monotonic", return_value=101.1):
+        with patch("multidevice_app.rust_host.time.perf_counter", return_value=101.1):
             hub._accept_event(sample(1000))
             self.assertAlmostEqual(hub.snapshot()["age_ms"], 100)
             hub._accept_event(sample(700))
             self.assertAlmostEqual(hub.snapshot()["age_ms"], 100)
-        with patch("multidevice_app.rust_host.time.monotonic", return_value=101.351):
+        with patch("multidevice_app.rust_host.time.perf_counter", return_value=101.351):
             self.assertIsNone(hub.snapshot()["sample"])
 
     def test_missing_invalid_and_future_timestamps_are_not_fresh(self):
         hub = WifiImu()
         hub.started_at = 10.
-        with patch("multidevice_app.rust_host.time.monotonic", return_value=11.):
+        with patch("multidevice_app.rust_host.time.perf_counter", return_value=11.):
             for elapsed in (None, True, -1, float("nan"), float("inf"), "1", 2000):
                 hub._accept_event(sample(elapsed))
                 self.assertIsNone(hub.latest)
@@ -66,10 +76,13 @@ class ImuTimingTests(unittest.TestCase):
             self.assertIsNotNone(hub.latest)
             self.assertIn("received_elapsed_ms", hub.latest[1])
             self.assertFalse(hub.snapshot()["classification"]["valid"])
-            received.clear()
-            packet["seq"] = 2
-            sender.sendto(json.dumps(packet).encode(), (address, int(port)))
-            self.assertTrue(received.wait(5))
-            fresh = hub.snapshot()["classification"]
-            self.assertTrue(fresh["valid"])
-            self.assertEqual(fresh["direction"], "up")
+            for seq in range(2, 12):
+                received.clear()
+                packet["seq"] = seq
+                sender.sendto(json.dumps(packet).encode(), (address, int(port)))
+                self.assertTrue(received.wait(5))
+                self.assertEqual(hub.latest[1]["seq"], seq)
+                fresh = hub.snapshot()["classification"]
+                self.assertTrue(fresh["valid"], (seq, hub.latest, fresh))
+                self.assertEqual(fresh["direction"], "up")
+                time.sleep(.002)
