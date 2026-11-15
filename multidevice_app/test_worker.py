@@ -10,7 +10,7 @@ from unittest.mock import patch
 import numpy as np
 
 from .contracts import Detection, Frame, SetupError
-from .rust_host import RustEngine
+from .rust_host import RustEngine, WifiImu
 from .tracking import RustTracking
 from .worker import PipeWorker
 
@@ -60,6 +60,26 @@ class WorkerTests(unittest.TestCase):
             with self.assertRaisesRegex(SetupError, "model startup: response timeout"):
                 self.engine()
             self.assertLess(time.monotonic() - start, 1.8)
+        self.assert_reaped()
+
+    def test_imu_startup_and_clock_sync_timeout_reap_child(self):
+        for program, stage in (
+            ("import time; time.sleep(30)", "IMU startup"),
+            ("import time; print('{\"event\":\"ready\",\"protocol_version\":2,\"address\":\"127.0.0.1:1\"}'); time.sleep(30)", "clock sync"),
+        ):
+            with self.subTest(stage=stage), self.spawn(program), patch("multidevice_app.rust_host.binary", return_value="fixture"):
+                hub = WifiImu(startup_timeout_s=1)
+                with self.assertRaisesRegex(SetupError, stage):
+                    hub.start()
+                hub.stop()
+        self.assert_reaped()
+
+    def test_legacy_imu_worker_is_rejected_instead_of_refreshing_timestamps(self):
+        with self.spawn("import time; print('{\"event\":\"ready\"}'); time.sleep(30)"), patch(
+            "multidevice_app.rust_host.binary", return_value="fixture"
+        ):
+            with self.assertRaisesRegex(SetupError, "protocol_version=2"):
+                WifiImu().start()
         self.assert_reaped()
 
     def test_frame_send_timeout_when_child_never_reads(self):

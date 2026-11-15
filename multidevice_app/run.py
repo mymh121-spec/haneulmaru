@@ -19,7 +19,7 @@ from multidevice_app.imu import DirectionClassifier
 from multidevice_app.tracking import create_tracker
 from multidevice_app.pipeline import Pipeline
 from multidevice_app.contracts import SetupError
-from multidevice_app.model_profile import load_profile, validate_classes, detector_options
+from multidevice_app.model_profile import load_profile, validate_classes, detector_options, profile_metadata
 
 
 def validate_config(config):
@@ -39,6 +39,7 @@ def validate_config(config):
     if type(engine["input_size"]) is not int or not 32 <= engine["input_size"] <= 2048 or engine["input_size"] % 32:
         raise ValueError("input_size는 32~2048 범위의 32 배수여야 합니다")
     validate_classes(engine["classes"])
+    profile_metadata(engine)
     if engine["name"] == "rust":
         detector_options(engine)
     if not 0 < engine["confidence"] <= 1 or not 0 <= config["color_confidence"] <= 1:
@@ -75,7 +76,7 @@ def draw(frame, packet):
         code = track["code"]
         color = colors.get(code, palette[zlib.crc32(code.encode("utf-8")) % len(palette)])
         cv2.rectangle(canvas, (x1, y1), (x2, y2), color, 2)
-        label = f"{track['code']} | ID {track['id'] if track['id'] is not None else 'pending'} | {track['confidence']:.0%}"
+        label = f"{track.get('display_name', track['code'])} | ID {track['id'] if track['id'] is not None else 'pending'} | {track['confidence']:.0%}"
         if label.isascii():
             cv2.putText(canvas, label, (x1, max(y1 - 8, 18)), cv2.FONT_HERSHEY_SIMPLEX, .6, color, 2)
         else:
@@ -142,7 +143,11 @@ def main():
     engine, camera, imu, pipeline, output = None, None, NoImu(), None, None
     try:
         engine = create_engine(config["engine"], root)
-        tracker = create_tracker(config["tracking"], config["engine"]["classes"])
+        verification = getattr(engine, "model_verification", None)
+        if verification and verification["status"] == "unverified":
+            print("모델 배포 검증 안 됨: 가중치 해시와 학습 클래스 순서 기록이 없습니다.", file=sys.stderr)
+        tracker = create_tracker(config["tracking"], config["engine"]["classes"],
+                                 config["engine"].get("class_change_policy", "allow"))
         model = json.loads((root / config["imu"]["training_path"]).read_text(encoding="utf-8"))
         pipeline = Pipeline(engine, tracker, DirectionClassifier(model), config["color_confidence"],
                             config["reset_tracking_after_gap_ms"])

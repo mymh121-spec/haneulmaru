@@ -17,6 +17,7 @@ Linux 또는 시스템 ONNX Runtime이 없는 Windows에서는 `HANEULMARU_ORT_L
 절대 경로를 지정합니다. Windows는 기존 `multidevice_app/bin/haneulmaru.exe`를 우선 사용합니다.
 소스 빌드를 검증하려면 빌드한 `rust/target/release/haneulmaru.exe`로 해당 파일을 교체합니다.
 CI는 Windows와 Linux에서 소스를 빌드한 뒤 테스트합니다.
+저장소의 Windows 실행 파일도 새 IMU 프로토콜과 strict 추적 정책을 지원하는 빌드로 갱신했습니다.
 
 ONNX Runtime 없이도 변경된 오류 처리와 데이터 검사는 실행할 수 있습니다.
 
@@ -34,6 +35,53 @@ python -m unittest multidevice_app.test_worker multidevice_app.test_pipeline mul
 - 실제 Rust 추론기에 합성 ONNX를 넣어 색상, 박스, 교차와 가림 중 ID 유지를 검사합니다.
 - 동봉 AVI를 OpenCV로 읽어 48프레임의 177건을 `demo/expected-tracks.jsonl`의
   프레임 번호, 시간, 클래스, 박스, ID와 비교합니다. OpenCV가 없으면 이 검사만 건너뜁니다.
+- 모델 해시/클래스 순서 변경을 작업자 시작 전에 거부하고, 표시 별칭을 바꿔도 위 177건이 유지되는지 검사합니다.
+- Rust 추적기의 strict/allow 정책에서 클래스 교체, 낮은 신뢰도, UNKNOWN, 색상 깜빡임을 검사합니다.
+- 로컬 UDP로 실제 Rust IMU 작업자에 데이터를 보내 Python 읽기를 600ms 지연시킵니다.
+  오래된 값이 되살아나지 않는지와 다음 새 패킷의 복구를 검사합니다. 루프백 UDP 허용이 필요합니다.
+
+## 모델 배포 기록과 표시 이름
+
+학습 시 클래스 ID 순서를 JSON 배열로 보관합니다. 예: `training-classes.json`의
+`["crate", "cart"]`. 학습/내보내기에 실제 사용한 클래스 목록을 사용해야 합니다.
+모델이 준비된 뒤 기존 프로필에서 새 배포 프로필을 생성합니다.
+
+```sh
+python -m multidevice_app.model_profile --profile profile.json --training-classes training-classes.json --output deployed.json
+python -m multidevice_app.run --profile deployed.json --source recording.avi --recording --no-imu
+```
+
+새 프로필의 `deployment`에는 `model_sha256`와 `classes`를 저장합니다.
+실행할 때 실제 가중치 해시와 클래스 이름/순서를 대조하므로 `--model`로 다른 파일을 지정해도
+해시가 다르면 시작하지 않습니다. 기존 출력 파일은 덮어쓰지 않습니다.
+이 기록은 실수로 모델/프로필을 섞는 것을 검출하며, 모델의 인식률이나 기록의 출처를 인증하지 않습니다.
+
+화면의 이름만 바꿀 때는 프로필에 `"display_names": {"crate": "상자", "cart": "카트"}`를
+추가합니다. `classes`는 학습 클래스 순서 그대로 유지합니다. JSONL의 `code`, `raw_code`, ID는
+유지되고 `display_name`이 별도로 제공됩니다. 낮은 신뢰도의 UNKNOWN은 별칭으로 숨기지 않습니다.
+기록 없는 기존 프로필은 계속 지원하며 `engine.model_verification.status=unverified`와
+CLI 안내를 제공합니다. 대조에 성공하면 `verified`와 모델 해시를 기록합니다.
+
+## 클래스 간 ID 연결 정책
+
+프로필 또는 `config.json`의 `engine`에 `"class_change_policy": "strict"`를 지정하면
+서로 다른 클래스의 관측을 같은 추적 ID에 연결하지 않습니다. UNKNOWN도 별도로 취급합니다.
+현재 strict는 Rust 추적기에서 지원합니다. ByteTrack/BoT-SORT와 함께 지정하면 시작 시 오류를 표시합니다.
+`tracking=none`은 ID를 생성하지 않습니다.
+
+기본 `allow`는 기존 동작입니다. 한 드론의 R/B/G 색상 관측이 순간적으로 바뀌어도 ID를 유지합니다.
+표시 별칭은 두 정책 모두에서 연결 판단에 사용하지 않습니다.
+
+## IMU 수신 시간과 지연
+
+Python과 Rust는 시작 시 요청/응답으로 시간 기준을 설정한 뒤, Rust의 UDP 수신 경과 시간을 전달합니다.
+Python은 요청 전 단조 시각을 기준으로 샘플 나이를 계산합니다. 동기화 전달 시간만큼 보수적으로
+더 오래된 값으로 판단하며, 프로세스 시작 지연과 파이프 읽기 시각을 새 수신 시각으로 사용하지 않습니다.
+수신 후 350ms를 넘긴 값은 만료됩니다. 기기 자체의 측정 시각과 카메라 노출 시각 동기화는 별도 과제입니다.
+
+IMU 프로토콜 2가 없는 구버전 Rust 작업자는 재빌드 안내와 함께 거부합니다.
+`WifiImu(startup_timeout_s=5)`로 시작 응답과 시간 기준 동기화 각각의 제한 시간을 조정할 수 있습니다.
+응답이 없거나 프로토콜이 맞지 않으면 작업자를 종료합니다.
 
 ## 작업자 제한 시간과 복구
 

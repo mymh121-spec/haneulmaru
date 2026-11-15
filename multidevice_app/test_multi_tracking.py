@@ -16,6 +16,7 @@ from .pipeline import Pipeline
 from .rust_host import ROOT, RustEngine
 from .test_rust_host import attr, field, integer, io, node
 from .tracking import create_tracker
+from .model_profile import model_sha256
 
 SIZE, FRAMES, STEP_MS = 128, 48, 50
 
@@ -81,8 +82,19 @@ def pipeline_for_clip(root):
 class MultiObjectTests(unittest.TestCase):
     @unittest.skipUnless(importlib.util.find_spec("cv2"), "OpenCV is required for the AVI regression")
     def test_bundled_video_matches_all_reference_tracks(self):
+        self.check_bundled_video(aliases=False)
+
+    @unittest.skipUnless(importlib.util.find_spec("cv2"), "OpenCV is required for the AVI regression")
+    def test_display_aliases_preserve_all_reference_tracks(self):
+        self.check_bundled_video(aliases=True)
+
+    def check_bundled_video(self, aliases):
         demo = ROOT / "demo"
         config = json.loads((demo / "config.json").read_text(encoding="utf-8"))
+        if aliases:
+            config["engine"]["display_names"] = {"R": "빨강", "B": "파랑", "G": "초록"}
+            config["engine"]["deployment"] = dict(
+                model_sha256=model_sha256(demo / config["engine"]["model_path"]), classes=["R", "B", "G"])
         model = json.loads((demo / config["imu"]["training_path"]).read_text(encoding="utf-8"))
         pipeline = Pipeline(RustEngine(config["engine"], demo), create_tracker(config["tracking"]),
                             DirectionClassifier(model), config["color_confidence"],
@@ -101,6 +113,9 @@ class MultiObjectTests(unittest.TestCase):
             self.assertAlmostEqual(result["frame_timestamp_ms"], reference["time_ms"], places=4)
             actual = [dict(id=t["id"], code=t["code"], xyxy=list(t["xyxy"])) for t in result["tracks"]]
             self.assertEqual(actual, reference["tracks"], reference["frame"])
+            self.assertEqual(result["engine"]["model_verification"]["status"], "verified" if aliases else "unverified")
+            for track in result["tracks"]:
+                self.assertEqual(track["display_name"], config["engine"].get("display_names", {}).get(track["code"], track["code"]))
             session = result["session_id"] if session is None else session
             self.assertEqual(result["session_id"], session)
             self.assertFalse(result["imu"]["valid"])

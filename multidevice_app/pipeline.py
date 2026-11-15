@@ -53,6 +53,8 @@ class Pipeline:
             entry["raw_code"] = entry["code"]
             if entry["confidence"] < self.color_confidence:
                 entry["code"] = "UNKNOWN"
+            aliases = getattr(self.engine, "display_names", {})
+            entry["display_name"] = aliases.get(entry["code"], entry["code"])
             output.append(entry)
         self.previous = frame.sequence, frame.timestamp_ms, shape
         self.tracking_uncertain = False
@@ -61,6 +63,7 @@ class Pipeline:
                     timestamp_basis=frame.timestamp_basis, image_size_px=[width, height],
                     orientation="upright_unmirrored", imu=imu, tracks=output,
                     engine=dict(name=self.engine.name, ready=self.engine.ready, reason=self.engine.reason,
+                                model_verification=getattr(self.engine, "model_verification", {"status": "unverified"}),
                                 executed=self.engine.ready, inference_ms=inference_ms),
                     processing_ms=(time.perf_counter() - start) * 1000,
                     execution_device="host", range_m=None)

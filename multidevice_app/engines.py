@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from .contracts import Detection, SetupError
-from .model_profile import validate_classes
+from .model_profile import validate_classes, profile_metadata, verify_model
 
 
 from .rust_host import RustEngine
@@ -27,10 +27,12 @@ class UltralyticsEngine:
     reason = None
 
     def __init__(self, config, root):
-        from ultralytics import YOLO
         weights = root / config["model_path"]
         if not weights.is_file():
             raise SetupError(f"학습된 .pt 파일을 찾을 수 없습니다: {weights}")
+        self.model_verification = verify_model(config, weights)
+        self.display_names = profile_metadata(config)["display_names"]
+        from ultralytics import YOLO
         self.model = YOLO(str(weights))
         names = validate_classes(config["classes"])
         if self.model.task != "detect" or self.model.names != dict(enumerate(names)):

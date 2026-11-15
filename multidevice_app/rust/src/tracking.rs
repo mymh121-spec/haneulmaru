@@ -32,7 +32,11 @@ struct Track {
 }
 
 impl Track {
-    fn cost(&self, obs: &Observation, now: f64) -> f64 {
+    fn cost(&self, obs: &Observation, now: f64, strict_classes: bool) -> f64 {
+        // Strict mode also isolates UNKNOWN: it cannot bridge two class IDs.
+        if strict_classes && self.last.code != obs.code {
+            return FORBIDDEN;
+        }
         let mut predicted = self.last.xyxy;
         let dt = (now - self.seen_ms) as f32;
         if let Some([vx, vy]) = self.velocity {
@@ -150,6 +154,7 @@ fn assignment(costs: &[Vec<f64>], real_cols: usize) -> Vec<(usize, usize)> {
 
 #[derive(Default)]
 struct Tracker {
+    strict_classes: bool,
     tracks: Vec<Track>,
     next_id: u64,
     last_ms: Option<f64>,
@@ -178,7 +183,11 @@ impl Tracker {
                 cols.iter()
                     .map(|&c| {
                         let (t, d) = if transpose { (c, r) } else { (r, c) };
-                        self.tracks[t].cost(&frame.detections[d], frame.timestamp_ms)
+                        self.tracks[t].cost(
+                            &frame.detections[d],
+                            frame.timestamp_ms,
+                            self.strict_classes,
+                        )
                     })
                     .collect()
             })
@@ -240,8 +249,11 @@ impl Tracker {
     }
 }
 
-pub fn worker() -> Result<()> {
-    let mut tracker = Tracker::default();
+pub fn worker(strict_classes: bool) -> Result<()> {
+    let mut tracker = Tracker {
+        strict_classes,
+        ..Tracker::default()
+    };
     let mut out = io::stdout().lock();
     for line in io::stdin().lock().lines() {
         let frame: Frame = serde_json::from_str(&line?)?;
@@ -255,6 +267,41 @@ pub fn worker() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn class_policy_gates_strong_weak_and_unknown_observations() {
+        for strict_classes in [false, true] {
+            let mut tracker = Tracker {
+                strict_classes,
+                ..Tracker::default()
+            };
+            let mut update = |ms, code: &str, confidence| {
+                tracker
+                    .update(&Frame {
+                        timestamp_ms: ms,
+                        detections: vec![Observation {
+                            xyxy: [0., 0., 10., 10.],
+                            code: code.into(),
+                            confidence,
+                        }],
+                    })
+                    .unwrap()[0]
+            };
+            assert_eq!(update(0., "crate", 0.95), Some(1));
+            assert_eq!(
+                update(50., "cart", 0.2),
+                if strict_classes { None } else { Some(1) }
+            );
+            assert_eq!(
+                update(100., "UNKNOWN", 0.2),
+                if strict_classes { None } else { Some(1) }
+            );
+            assert_eq!(
+                update(150., "cart", 0.95),
+                Some(if strict_classes { 2 } else { 1 })
+            );
+            assert_eq!(update(200., "crate", 0.95), Some(1));
+        }
+    }
     #[test]
     fn assign_globally_and_allow_unmatched() {
         let costs = vec![

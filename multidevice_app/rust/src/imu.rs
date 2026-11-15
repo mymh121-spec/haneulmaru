@@ -182,6 +182,7 @@ fn event(
 }
 
 pub fn listen(bind: &str, model: Option<&String>) -> Result<()> {
+    let mut origin = Instant::now();
     let model = Model::load(&match model {
         Some(p) => fs::read_to_string(p)?,
         None => include_str!("../../assets/nu40-imu-direction-training.json").to_owned(),
@@ -199,13 +200,25 @@ pub fn listen(bind: &str, model: Option<&String>) -> Result<()> {
     );
     println!(
         "{}",
-        json!({"event":"ready","address":socket.local_addr()?.to_string()})
+        json!({"event":"ready","protocol_version":2,"address":socket.local_addr()?.to_string()})
     );
+    if env::var("HANEULMARU_IMU_SYNC").as_deref() == Ok("1") {
+        let mut request = String::new();
+        std::io::stdin().read_line(&mut request)?;
+        if request.trim() != "sync" {
+            return Err("Expected IMU clock sync request".into());
+        }
+        origin = Instant::now();
+        println!("{}", json!({"event":"clock_synced"}));
+    }
     let mut data = vec![0u8; 65536];
     let mut peer = Peer::default();
     loop {
         let (n, _) = socket.recv_from(&mut data)?;
-        if let Some(event) = event(&data[..n], &key, &model, &mut peer, Instant::now()) {
+        let arrived = Instant::now();
+        if let Some(mut event) = event(&data[..n], &key, &model, &mut peer, arrived) {
+            event["received_elapsed_ms"] =
+                json!(arrived.duration_since(origin).as_secs_f64() * 1000.);
             println!("{event}");
         }
     }

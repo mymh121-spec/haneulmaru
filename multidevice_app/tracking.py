@@ -14,7 +14,10 @@ class NoTracking:
 
 
 class RustTracking:
-    def __init__(self, request_timeout_s=5):
+    def __init__(self, request_timeout_s=5, class_change_policy="allow"):
+        if class_change_policy not in ("allow", "strict"):
+            raise SetupError("class_change_policy: allow / strict")
+        self.class_change_policy = class_change_policy
         self.proc = None
         self.worker = None
         self.request_timeout = timeout_seconds(request_timeout_s)
@@ -23,7 +26,10 @@ class RustTracking:
         message = {"timestamp_ms": frame.timestamp_ms, "detections": [d.packet() for d in detections]}
         payload = json.dumps(message, allow_nan=False).encode() + b"\n"
         if self.worker is None:
-            self.worker = PipeWorker([binary(), "track"])
+            args = [binary(), "track"]
+            if self.class_change_policy == "strict":
+                args.append("strict")
+            self.worker = PipeWorker(args)
             self.proc = self.worker.proc
         try:
             line = self.worker.exchange(payload, self.request_timeout, "Rust tracking")
@@ -86,7 +92,11 @@ class UltralyticsTracking:
         self.tracker.reset()
 
 
-def create_tracker(name, classes=("R", "B", "G")):
+def create_tracker(name, classes=("R", "B", "G"), class_change_policy="allow"):
+    if class_change_policy not in ("allow", "strict"):
+        raise SetupError("class_change_policy: allow / strict")
     if name == "rust":
-        return RustTracking()
+        return RustTracking(class_change_policy=class_change_policy)
+    if name != "none" and class_change_policy == "strict":
+        raise SetupError("strict 클래스 연결 정책에는 Rust 추적기를 사용하세요.")
     return NoTracking() if name == "none" else UltralyticsTracking(name, classes)

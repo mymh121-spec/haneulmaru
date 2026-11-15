@@ -14,9 +14,9 @@ def timeout_seconds(value):
 
 
 class PipeWorker:
-    def __init__(self, args):
+    def __init__(self, args, *, env=None):
         # Unbuffered pipes let the I/O thread own all writes, including flushes.
-        self.proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
+        self.proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0, env=env)
         self.thread = None
         self.closed = False
 
