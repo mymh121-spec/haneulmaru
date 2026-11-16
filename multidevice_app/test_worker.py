@@ -66,7 +66,7 @@ class WorkerTests(unittest.TestCase):
         from .video_worker import IsolatedSource
         for program, stage in (
             ("import time; time.sleep(30)", "Video open"),
-            ('import time; print(\'{"ready":true}\'); time.sleep(30)', "Video read"),
+            ('import time; print(\'{"ready":true,"video_protocol":2}\'); time.sleep(30)', "Video read"),
         ):
             with self.subTest(stage=stage), self.spawn(program):
                 start = time.monotonic()
@@ -92,6 +92,51 @@ class WorkerTests(unittest.TestCase):
             with self.assertRaisesRegex(SetupError, "response failed"):
                 worker.exchange(b"a\n", 2, "test")
         self.assert_reaped()
+
+    def test_video_binary_pixels_preserve_newlines_and_partial_chunks(self):
+        from .video_worker import IsolatedSource
+        program = '''import json,sys,time
+r=sys.stdin.buffer; w=sys.stdout.buffer
+r.readline(); print('{"ready":true,"video_protocol":2}',flush=True)
+for i in range(2):
+    r.readline()
+    header=dict(sequence=i+1,timestamp_ms=i*1000/60,timestamp_basis="video_pts",shape=[2,2])
+    pixels=bytes([10,0,255,13,0,128,255,10,13,64,128,192])
+    w.write(json.dumps(header).encode()+b'\\n'+pixels[:5]); w.flush(); time.sleep(.01)
+    w.write(pixels[5:]); w.flush()
+r.readline(); print('{"eof":true}',flush=True); time.sleep(30)
+'''
+        with self.spawn(program):
+            source = IsolatedSource("fixture",timeout_s=2)
+            try:
+                for i in range(2):
+                    frame=source.read()
+                    self.assertEqual(frame.sequence,i+1)
+                    self.assertEqual(frame.image.tobytes(),bytes([10,0,255,13,0,128,255,10,13,64,128,192]))
+                    self.assertAlmostEqual(frame.timestamp_ms,i*1000/60)
+                self.assertIsNone(source.read())
+            finally:
+                source.close()
+        self.assert_reaped()
+
+    def test_video_binary_truncation_stall_and_oversize_reap_worker(self):
+        from .video_worker import IsolatedSource
+        prefix = '''import sys,json,time
+r=sys.stdin.buffer; r.readline(); print('{"ready":true,"video_protocol":2}',flush=True); r.readline()
+'''
+        header = 'print(json.dumps(dict(sequence=1,timestamp_ms=0,timestamp_basis="video_pts",shape=[2,2])),flush=True); '
+        cases = ((header+'sys.stdout.buffer.write(b"abc"); sys.stdout.buffer.flush()', "response failed"),
+                 (header+'time.sleep(30)', "response timeout"),
+                 ('print(\'{"shape":[99999,99999]}\',flush=True); time.sleep(30)', "response failed"))
+        for program, message in cases:
+            with self.subTest(message=message), self.spawn(prefix+program):
+                source=IsolatedSource("fixture",timeout_s=1)
+                try:
+                    with self.assertRaisesRegex(SetupError,message):
+                        source.read()
+                finally:
+                    source.close()
+            self.assert_reaped()
 
     def test_imu_startup_and_clock_sync_timeout_reap_child(self):
         for program, stage in (

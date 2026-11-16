@@ -40,6 +40,8 @@ python -m unittest multidevice_app.test_worker multidevice_app.test_pipeline mul
 - Rust 추적기의 strict/allow 정책에서 클래스 교체, 낮은 신뢰도, UNKNOWN, 색상 깜빡임을 검사합니다.
 - 동기화 응답과 IMU 샘플을 같은 쓰기에 묶어 보내 첫 샘플이 버퍼 전환에서 사라지지 않는지 검사합니다.
 - 통합 Rust 파이프라인의 48프레임 결과와 세션/복구를 기존 경로에 대조하고, Rust 평가를 보존한 Python 기준 구현과 대조합니다.
+- 실제 60fps FFV1 파일 600프레임에서 프레임 순서/시각, 2,385관측, IMU 만료/복구를 검사합니다.
+  격리 입력의 바이너리 부분 전송, 중간 EOF/정지, 크기 제한과 720p에서 회색 여백 오탐이 없는지도 검사합니다.
 - 로컬 UDP로 실제 Rust IMU 작업자에 데이터를 보내 Python 읽기를 600ms 지연시킵니다.
   오래된 값이 되살아나지 않는지와 다음 새 패킷의 복구를 검사합니다. 루프백 UDP 허용이 필요합니다.
 

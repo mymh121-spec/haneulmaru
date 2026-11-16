@@ -27,7 +27,7 @@ class PipeWorker:
         self.thread = None
         self.closed = False
 
-    def exchange(self, payload, timeout, stage):
+    def exchange(self, payload, timeout, stage, *, response_reader=None):
         timeout = timeout_seconds(timeout)
         if self.closed:
             raise SetupError(f"{stage}: worker is closed; create a new worker")
@@ -43,8 +43,7 @@ class PipeWorker:
                         raise OSError("closed input pipe")
                     remaining = remaining[written:]
                 phase[0] = "response"
-                line = self.readline()
-                result.append(line)
+                result.append((response_reader or self.readline)())
             except Exception as exc:
                 result.append(exc)
             finally:

@@ -26,10 +26,14 @@ def peak_test_graph():
     # receives only the RGB frame. It never receives the trajectory or track ID.
     count = SIZE * SIZE
     nodes = [
-        node("MaxPool", ["images"], "max", [attr("kernel_shape", [7, 7]), attr("pads", [3]*4)]),
-        node("Equal", ["images", "max"], "peaks", []),
+        # Reject achromatic letterbox padding at any aspect ratio. Pure RGB
+        # targets keep exactly the previous scores and source coordinates.
+        node("ReduceMin", ["images"], "gray", [attr("axes", [1]), integer("keepdims", 1)]),
+        node("Sub", ["images", "gray"], "contrast", []),
+        node("MaxPool", ["contrast"], "max", [attr("kernel_shape", [7, 7]), attr("pads", [3]*4)]),
+        node("Equal", ["contrast", "max"], "peaks", []),
         node("Cast", ["peaks"], "mask", [integer("to", 1)]),
-        node("Mul", ["images", "mask"], "strength", []),
+        node("Mul", ["contrast", "mask"], "strength", []),
         node("Gather", ["strength", "order"], "rbg", [integer("axis", 1)]),
         node("Reshape", ["rbg", "shape"], "scores", []),
         node("Concat", ["boxes", "scores"], "output0", [integer("axis", 1)]),

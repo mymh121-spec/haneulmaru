@@ -1,0 +1,276 @@
+{
+  "date": "2026-11-16",
+  "environment": {
+    "os": "Windows-10-10.0.26200-SP0",
+    "python": "3.10.8",
+    "opencv": "4.14.0",
+    "onnxruntime": "1.23.2",
+    "processor": "AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD"
+  },
+  "scope": "Local synthetic CPU verification, not a device/model SLA. 60Hz file, first 48 frames moving then stationary. No display/network/devices.",
+  "workload": {
+    "model_sha256": "12037497fabb747a5146e948c78afbafcbd07058980ee653e41a56404331c913",
+    "input_tensor": [
+      1,
+      3,
+      128,
+      128
+    ],
+    "objects": "3-4",
+    "codec": "FFV1"
+  },
+  "measurements": [
+    {
+      "schema_version": 1,
+      "source_fps": 60,
+      "frames": 600,
+      "dimensions": [
+        1280,
+        720
+      ],
+      "decoder": "isolated",
+      "paced": false,
+      "model": "synthetic-peaks-128-input",
+      "functional_pass": true,
+      "object_counts": {
+        "min": 3,
+        "max": 4,
+        "total": 2385
+      },
+      "sequence_gaps": 0,
+      "unexpected_session_resets": 0,
+      "imu_expired_frames": [
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60
+      ],
+      "reference_512": null,
+      "wall_seconds": 4.181849899992812,
+      "achieved_fps": 143.47717262664813,
+      "all_frames_service_ms": {
+        "mean": 6.966567667065344,
+        "p50": 6.3445999985560775,
+        "p95": 8.722900005523115,
+        "p99": 25.77229999587871,
+        "max": 38.42420000000857
+      },
+      "warmup_excluded_frames": 10,
+      "steady_service_ms": {
+        "mean": 6.947566102055627,
+        "p50": 6.35830000101123,
+        "p95": 8.722900005523115,
+        "p99": 25.77229999587871,
+        "max": 38.42420000000857
+      },
+      "frame_budget_ms": 16.666666666666668,
+      "steady_decode_ms": {
+        "mean": 3.7158437288056474,
+        "p50": 3.3675000013317913,
+        "p95": 4.277699990780093,
+        "p99": 16.204500003368594,
+        "max": 30.247799993958324
+      },
+      "steady_inference_ms": {
+        "mean": 0.7190799999999994,
+        "p50": 0.6703,
+        "p95": 0.8432,
+        "p99": 1.4633,
+        "max": 14.3158
+      },
+      "steady_pipeline_ms": {
+        "mean": 2.9479920341962775,
+        "p50": 2.7369000017642975,
+        "p95": 3.4838999999919906,
+        "p99": 11.30379999813158,
+        "max": 18.41059999424033
+      },
+      "steady_over_budget_frames": 12,
+      "steady_capacity_fps": 143.9352983923568,
+      "paced_finish_lag_ms": null,
+      "paced_start_lateness_ms": null,
+      "paced_missed_deadlines": null,
+      "scope": "decode + recorded IMU + Rust inference/tracking + JSONL write/flush; no display/network/devices; startup excluded",
+      "model_sha256": "12037497fabb747a5146e948c78afbafcbd07058980ee653e41a56404331c913"
+    },
+    {
+      "schema_version": 1,
+      "source_fps": 60,
+      "frames": 600,
+      "dimensions": [
+        1920,
+        1080
+      ],
+      "decoder": "isolated",
+      "paced": false,
+      "model": "synthetic-peaks-128-input",
+      "functional_pass": true,
+      "object_counts": {
+        "min": 3,
+        "max": 4,
+        "total": 2385
+      },
+      "sequence_gaps": 0,
+      "unexpected_session_resets": 0,
+      "imu_expired_frames": [
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60
+      ],
+      "reference_512": null,
+      "wall_seconds": 6.945109099993715,
+      "achieved_fps": 86.39173141290796,
+      "all_frames_service_ms": {
+        "mean": 11.57125799972467,
+        "p50": 11.019500001566485,
+        "p95": 15.43459999084007,
+        "p99": 18.280400006915443,
+        "max": 37.30569999606814
+      },
+      "warmup_excluded_frames": 10,
+      "steady_service_ms": {
+        "mean": 11.535438474329876,
+        "p50": 11.024199993698858,
+        "p95": 15.43459999084007,
+        "p99": 18.280400006915443,
+        "max": 23.375600008876063
+      },
+      "frame_budget_ms": 16.666666666666668,
+      "steady_decode_ms": {
+        "mean": 6.382469321952312,
+        "p50": 6.058099999791011,
+        "p95": 9.851499999058433,
+        "p99": 11.049499997170642,
+        "max": 16.749799993704073
+      },
+      "steady_inference_ms": {
+        "mean": 0.6811423728813564,
+        "p50": 0.6848,
+        "p95": 0.7934,
+        "p99": 0.9798000000000001,
+        "max": 2.9315
+      },
+      "steady_pipeline_ms": {
+        "mean": 4.714454406644494,
+        "p50": 4.487400001380593,
+        "p95": 6.736499999533407,
+        "p99": 8.950000003096648,
+        "max": 15.401399999973364
+      },
+      "steady_over_budget_frames": 8,
+      "steady_capacity_fps": 86.68937918791099,
+      "paced_finish_lag_ms": null,
+      "paced_start_lateness_ms": null,
+      "paced_missed_deadlines": null,
+      "scope": "decode + recorded IMU + Rust inference/tracking + JSONL write/flush; no display/network/devices; startup excluded",
+      "model_sha256": "12037497fabb747a5146e948c78afbafcbd07058980ee653e41a56404331c913"
+    },
+    {
+      "schema_version": 1,
+      "source_fps": 60,
+      "frames": 600,
+      "dimensions": [
+        1920,
+        1080
+      ],
+      "decoder": "isolated",
+      "paced": true,
+      "model": "synthetic-peaks-128-input",
+      "functional_pass": true,
+      "model_sha256": "12037497fabb747a5146e948c78afbafcbd07058980ee653e41a56404331c913",
+      "object_counts": {
+        "min": 3,
+        "max": 4,
+        "total": 2385
+      },
+      "sequence_gaps": 0,
+      "unexpected_session_resets": 0,
+      "imu_expired_frames": [
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60
+      ],
+      "reference_512": null,
+      "wall_seconds": 10.002974299990456,
+      "achieved_fps": 59.98215950635527,
+      "all_frames_service_ms": {
+        "mean": 12.049987833524938,
+        "p50": 11.479699998744763,
+        "p95": 15.956600007484667,
+        "p99": 19.24370000779163,
+        "max": 38.27030000684317
+      },
+      "warmup_excluded_frames": 10,
+      "steady_service_ms": {
+        "mean": 11.997792881546479,
+        "p50": 11.479699998744763,
+        "p95": 15.829600000870414,
+        "p99": 19.24370000779163,
+        "max": 24.984600007883273
+      },
+      "frame_budget_ms": 16.666666666666668,
+      "steady_decode_ms": {
+        "mean": 6.689352542457913,
+        "p50": 6.28570000117179,
+        "p95": 10.525400008191355,
+        "p99": 13.518000007024966,
+        "max": 17.513500002678484
+      },
+      "steady_inference_ms": {
+        "mean": 0.7167013559322036,
+        "p50": 0.7287,
+        "p95": 0.8574999999999999,
+        "p99": 1.0356,
+        "max": 2.0745999999999998
+      },
+      "steady_pipeline_ms": {
+        "mean": 4.844872372583052,
+        "p50": 4.663800005801022,
+        "p95": 6.7159000027459115,
+        "p99": 8.193200003006496,
+        "max": 13.946399994893
+      },
+      "steady_over_budget_frames": 11,
+      "steady_capacity_fps": 83.34866336441566,
+      "paced_finish_lag_ms": {
+        "mean": 2.3767733335262164,
+        "p50": 0,
+        "p95": 9.935599999153055,
+        "p99": 15.838733335840516,
+        "max": 23.610766671481542
+      },
+      "paced_start_lateness_ms": {
+        "mean": 5.6067244411678985,
+        "p50": 4.3520333274500445,
+        "p95": 14.68913332791999,
+        "p99": 15.843733330257237,
+        "max": 23.61796665354632
+      },
+      "paced_missed_deadlines": 296,
+      "scope": "decode + recorded IMU + Rust inference/tracking + JSONL write/flush; no display/network/devices; startup excluded"
+    }
+  ]
+}
