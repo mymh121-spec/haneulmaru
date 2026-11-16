@@ -8,6 +8,7 @@ NU40은 S22에 USB로 연결하고 S22가 같은 Wi-Fi·핫스팟의 PC로 센�
 
 - [로컬 YOLO·COCO와 Hugging Face·HTTP API 데이터셋 가져오기, 학습, Rust 모델 교체](multidevice_app/DATASETS.md)
 - [하드웨어 없는 재생, 평가, 복구, 데이터 검사와 배포](multidevice_app/OFFLINE_WORKBENCH.md)
+- [Rust 로컬 LLM으로 실행 결과 요약·질의응답](multidevice_app/local_llm/README.md)
 - [USB 연결, PC IP와 페어링 방법](NU40_연동_사용법.txt)
 - [Rust 영상 인식, ONNX 준비, 빌드와 실행](multidevice_app/구조와실행.txt)
 - [검증 범위](multidevice_app/검토결과.txt)

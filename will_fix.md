@@ -61,6 +61,9 @@
 
 ## 회귀 검사와 후속 검증
 
+- [x] **Rust 로컬 LLM 실행 경로** — 포크 없이 고정한 `mistralrs 0.8.1` SDK를 사용한다. JSONL 집계, 근거 프롬프트 구성, CPU GGUF 실행, 제한시간과 결과 저장은 Rust다. 미학습 시험용 GGUF의 실제 토큰 생성으로 연결을 검사한다. [실행 안내](multidevice_app/local_llm/README.md)
+- [ ] **학습된 로컬 LLM 검증** — 사용자가 준비한 모델로 한국어 답변의 근거 일치, 모델별 컨텍스트 한계, 메모리와 tokens/s를 측정한다. 현재 가중치가 없어 수행하지 않았다. CUDA/Metal 경로도 별도 검사한다.
+
 - [x] **자동 검사** — Windows/Linux CI에서 Rust/Python 테스트를 실행하고, 동봉한 AVI를 실제 OpenCV 경로로 처리해 기준 결과와 비교한다. 48프레임의 177건을 프레임별 박스·클래스·ID까지 검사한다. [기준 결과](multidevice_app/demo/expected-tracks.jsonl)
 - [x] **센서 이벤트 시간** — Rust UDP 수신 시각을 단조 증가 경과 시간으로 전달한다. Python 파이프 읽기를 600ms 지연시키는 로컬 UDP 검사에서 오래된 값은 만료되고 다음 새 패킷은 정상 처리된다. 시작·시간 기준 동기화 제한 시간과 구버전 작업자 거부도 검사한다. [현재 처리](multidevice_app/rust_host.py)
 - 실제 영상의 누락·오탐·ID 교체율과 S22/NU40 재연결은 별도 통합 검증으로 남긴다. [실기기 시험 절차](https://github.com/mymh121-spec/haneulmaru/blob/d564b0426e273110dfaa97d0d81597f798fff84a/will_fix.md) · [기존 검증 기록](multidevice_app/검토결과.txt)

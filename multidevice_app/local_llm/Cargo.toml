@@ -1,0 +1,27 @@
+[package]
+name = "haneulmaru-llm"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+publish = false
+
+[features]
+default = []
+cuda = ["mistralrs/cuda"]
+metal = ["mistralrs/metal"]
+
+[dependencies]
+haneulmaru = { path = "../rust" }
+mistralrs = { version = "=0.8.1", default-features = false }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[profile.dev]
+debug = 0
+
+[profile.release]
+strip = true

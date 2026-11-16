@@ -17,6 +17,7 @@ Linux 또는 시스템 ONNX Runtime이 없는 Windows에서는 `HANEULMARU_ORT_L
 절대 경로를 지정합니다. Windows는 기존 `multidevice_app/bin/haneulmaru.exe`를 우선 사용합니다.
 소스 빌드를 검증하려면 빌드한 `rust/target/release/haneulmaru.exe`로 해당 파일을 교체합니다.
 CI는 Windows와 Linux에서 소스를 빌드한 뒤 테스트합니다.
+로컬 LLM은 별도 `local-llm` 작업에서 공식 mistralrs SDK를 빌드하고, Rust에서 만든 작은 미학습 GGUF로 실제 토큰 생성까지 검사합니다. 외부 가중치는 다운로드하지 않습니다. [Rust LLM 실행과 검증 경계](local_llm/README.md)
 기본 Rust 탐지+추적 통합 경로와 오프라인 Rust 평가도 이 빌드로 검사합니다.
 저장소의 Windows 실행 파일도 새 IMU 프로토콜과 strict 추적 정책을 지원하는 빌드로 갱신했습니다.
 

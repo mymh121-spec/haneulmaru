@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-16",
+  "platform": "Windows x64",
+  "rustc": "1.97.0",
+  "backend": "mistralrs 0.8.1 from crates.io",
+  "forked_engine": false,
+  "downloaded_model_weights": false,
+  "tests": {
+    "existing_rust_and_evidence": {"passed": 16},
+    "local_llm_unit": {"passed": 4, "subprocess_fixture_ignored_in_parent": 1},
+    "local_llm_cli_integration": {"passed": 4},
+    "python_regression": {"passed": 79},
+    "review_controls_mock_dom": "passed"
+  },
+  "native_inference_smoke": {
+    "fixture": "tests/support/mod.rs writes a tiny untrained F32 Llama GGUF locally",
+    "device": "cpu",
+    "completion_tokens": 2,
+    "expected_token": "x",
+    "covers": ["GGUF load", "tokenizer", "real SDK inference", "child process", "JSON output"],
+    "does_not_cover": ["trained model answer quality", "quantized GGUF variants", "GPU", "real-model throughput"]
+  },
+  "recorded_results_smoke": {
+    "frames": 48,
+    "observations": {"B": 44, "G": 42, "R": 91},
+    "unique_session_track_ids": 4,
+    "missing_sequence_numbers": 0,
+    "prepared_prompt_saved": true,
+    "model_executed": false
+  },
+  "environment_notes": [
+    "Sandbox restricted local UDP and atomic tempfile publication; those tests passed with normal Windows permissions.",
+    "One existing Python dataset staging rename produced WinError 5; unchanged full-suite rerun passed."
+  ],
+  "pending": ["trained local GGUF Korean answer validation", "CUDA/Metal validation", "LLM/vision concurrent resource benchmark"]
+}
