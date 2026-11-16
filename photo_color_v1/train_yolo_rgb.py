@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 
@@ -46,6 +47,11 @@ def main():
             val=True, plots=True, save=True,
         )
     print("학습된 모델:", model.trainer.best)
+    # Persist the actual trained model's class order next to the weights.
+    trained = YOLO(str(model.trainer.best))
+    names = [trained.names[i] for i in range(len(trained.names))]
+    (Path(model.trainer.best).parent / "training-classes.json").write_text(
+        json.dumps(names, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("이어 학습할 모델:", model.trainer.last)
 
 

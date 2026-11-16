@@ -1,5 +1,6 @@
 """Bounded, synchronous pipe exchanges with one child process (Windows/Linux)."""
 import math
+import io
 import subprocess
 import threading
 import time
@@ -14,9 +15,15 @@ def timeout_seconds(value):
 
 
 class PipeWorker:
-    def __init__(self, args, *, env=None):
+    def __init__(self, args, *, env=None, max_response_bytes=1024*1024):
+        if type(max_response_bytes) is not int or max_response_bytes < 1:
+            raise ValueError("Response limit must be a positive integer")
         # Unbuffered pipes let the I/O thread own all writes, including flushes.
         self.proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0, env=env)
+        # Buffer reads only: raw FileIO.readline() performs a syscall per byte.
+        # Writes stay unbuffered, and readers are closed only after the I/O thread joins.
+        self.reader = io.BufferedReader(self.proc.stdout, buffer_size=65536)
+        self.max_response_bytes = max_response_bytes
         self.thread = None
         self.closed = False
 
@@ -36,9 +43,11 @@ class PipeWorker:
                         raise OSError("closed input pipe")
                     remaining = remaining[written:]
                 phase[0] = "response"
-                line = self.proc.stdout.readline()
+                line = self.reader.readline(self.max_response_bytes + 1)
                 if not line:
                     raise OSError("closed output pipe")
+                if len(line) > self.max_response_bytes or not line.endswith(b"\n"):
+                    raise OSError("invalid or oversized response line")
                 result.append(line)
             except Exception as exc:
                 result.append(exc)
@@ -87,4 +96,4 @@ class PipeWorker:
             if self.thread.is_alive():
                 raise SetupError("Worker pipe cleanup timeout after kill")
         self.proc.stdin.close()
-        self.proc.stdout.close()
+        self.reader.close()

@@ -11,6 +11,7 @@ import tempfile
 import yaml
 from PIL import Image
 from .contracts import SetupError
+from .dataset_quality import fingerprints
 from .model_profile import validate_classes
 
 IMAGE_TYPES = {".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
@@ -190,7 +191,8 @@ def write_dataset(output, names, splits, *, source_info=None):
     if not {"train", "val"} <= splits.keys() <= set(SPLITS):
         raise ValueError("Expected train, val and optionally test splits")
     output.parent.mkdir(parents=True, exist_ok=True)
-    counts, seen, hashes, records = {}, set(), {}, []
+    counts, seen, hashes, pixel_hashes, records = {}, set(), {}, {}, []
+    class_counts_by_split = {}
     with tempfile.TemporaryDirectory(dir=output.parent, prefix=".dataset-") as tmp:
         stage = Path(tmp) / "dataset"
         for split, samples in splits.items():
@@ -199,6 +201,7 @@ def write_dataset(output, names, splits, *, source_info=None):
             images.mkdir(parents=True)
             labels.mkdir(parents=True)
             image_count = box_count = 0
+            class_counts = {name: 0 for name in names}
             for rec in samples:
                 source = rec.image.resolve()
                 if source in seen:
@@ -208,27 +211,35 @@ def write_dataset(output, names, splits, *, source_info=None):
                 stem = f"{image_count:07d}"
                 destination = images / (stem + source.suffix.lower())
                 shutil.copyfile(source, destination)
-                dimensions = image_size(destination)
-                digest = content_hash(destination)
+                dimensions, digest, pixel_hash, _ = fingerprints(destination, perceptual=False)
                 if digest in hashes:
                     other_split, other_source = hashes[digest]
                     raise ValueError(f"Duplicate image content: {split}:{source} matches {other_split}:{other_source}")
                 hashes[digest] = (split, source)
+                if pixel_hash in pixel_hashes:
+                    raise ValueError(f"Duplicate image pixels: {split}:{source} matches {pixel_hashes[pixel_hash]}")
+                pixel_hashes[pixel_hash] = f"{split}:{source}"
                 lines = [label_line(row, len(names), source) for row in rec.boxes]
                 (labels / (stem + ".txt")).write_text("".join(lines), encoding="utf-8")
                 box_count += len(lines)
+                for cls, *_ in rec.boxes:
+                    class_counts[names[cls]] += 1
                 records.append(dict(split=split, source=str(source), sha256=digest,
+                                    output_image=destination.relative_to(stage).as_posix(), pixel_sha256=pixel_hash,
                                     image_size_px=list(dimensions), boxes=len(lines), clipped_boxes=rec.clipped_boxes))
             if not image_count or (split == "train" and not box_count):
                 raise ValueError(f"{split}: empty split or no trainable boxes")
             counts[split] = {"images": image_count, "boxes": box_count}
+            class_counts_by_split[split] = class_counts
         spec = {s: "images/" + s for s in splits}
         spec.update(nc=len(names), names=names)
         (stage / "data.yaml").write_text(yaml.safe_dump(spec, allow_unicode=True, sort_keys=False), encoding="utf-8")
         profile = dict(schema_version=1, model_path="best.onnx", classes=names, input_size=640,
                        input_name="images", output_name="output0", output_layout="yolo_raw", agnostic_nms=False)
         (stage / "profile.json").write_text(json.dumps(profile, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        report = dict(schema_version=1, counts=counts, duplicate_policy="reject_identical_bytes",
+        (stage / "training-classes.json").write_text(json.dumps(names, ensure_ascii=False) + "\n", encoding="utf-8")
+        report = dict(schema_version=1, classes=names, counts=counts, class_boxes=class_counts_by_split,
+                      duplicate_policy="reject_identical_bytes_or_rgb_pixels",
                       box_policy=dict(yolo="reject_outside", coco="clip_partial_reject_outside"),
                       clipped_boxes=sum(r["clipped_boxes"] for r in records), samples=records)
         (stage / "validation_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

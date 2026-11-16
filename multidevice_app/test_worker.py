@@ -62,6 +62,37 @@ class WorkerTests(unittest.TestCase):
             self.assertLess(time.monotonic() - start, 1.8)
         self.assert_reaped()
 
+    def test_isolated_decoder_open_and_read_timeouts_reap_child(self):
+        from .video_worker import IsolatedSource
+        for program, stage in (
+            ("import time; time.sleep(30)", "Video open"),
+            ('import time; print(\'{"ready":true}\'); time.sleep(30)', "Video read"),
+        ):
+            with self.subTest(stage=stage), self.spawn(program):
+                start = time.monotonic()
+                with self.assertRaisesRegex(SetupError, stage + ": response timeout"):
+                    source = IsolatedSource("fixture", timeout_s=1)
+                    try:
+                        source.read()
+                    finally:
+                        source.close()
+                self.assertLess(time.monotonic()-start, 2.5)
+            self.assert_reaped()
+
+    def test_buffered_reply_preserves_next_line_and_bounds_response(self):
+        with self.spawn('import time; print("first\\nsecond"); time.sleep(30)'):
+            worker = PipeWorker(["fixture"])
+            try:
+                self.assertEqual(worker.exchange(b"a\n", 2, "test").rstrip(b"\r\n"), b"first")
+                self.assertEqual(worker.exchange(b"b\n", 2, "test").rstrip(b"\r\n"), b"second")
+            finally:
+                worker.close()
+        with self.spawn('import time; print("x"*100); time.sleep(30)'):
+            worker = PipeWorker(["fixture"], max_response_bytes=10)
+            with self.assertRaisesRegex(SetupError, "response failed"):
+                worker.exchange(b"a\n", 2, "test")
+        self.assert_reaped()
+
     def test_imu_startup_and_clock_sync_timeout_reap_child(self):
         for program, stage in (
             ("import time; time.sleep(30)", "IMU startup"),

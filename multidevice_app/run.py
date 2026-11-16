@@ -9,6 +9,7 @@ import time
 import zlib
 from functools import lru_cache
 import os
+from contextlib import ExitStack
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -20,6 +21,8 @@ from multidevice_app.tracking import create_tracker
 from multidevice_app.pipeline import Pipeline
 from multidevice_app.contracts import SetupError
 from multidevice_app.model_profile import load_profile, validate_classes, detector_options, profile_metadata
+from multidevice_app.replay import ImuReplay, DetectionReplay, CachingEngine, finite
+from multidevice_app.recovery import Budget, RecoveringPipeline, RecoveringSource
 
 
 def validate_config(config):
@@ -113,10 +116,24 @@ def main():
     parser.add_argument("--no-imu", action="store_true")
     parser.add_argument("--show", action="store_true", help="외부 영상 창 표시; Q로 종료")
     parser.add_argument("--jsonl", type=Path, help="선택: 결과를 새 파일에 저장")
+    parser.add_argument("--imu-log", type=Path, help="영상 시간축의 IMU JSONL 재생")
+    parser.add_argument("--imu-offset-ms", type=float, default=0, help="센서 시각에 더할 영상 시간 오프셋")
+    parser.add_argument("--detections", type=Path, help="모델 대신 저장된 원시 탐지 JSONL 사용")
+    parser.add_argument("--cache-detections", type=Path, help="원시 탐지를 새 JSONL 파일로 저장")
+    parser.add_argument("--start-ms", type=float, default=0)
+    parser.add_argument("--end-ms", type=float)
+    parser.add_argument("--repeat", type=int, default=1)
+    parser.add_argument("--speed", type=float, default=1, help="녹화 미리보기 배속; headless는 최대 속도")
+    parser.add_argument("--max-restarts", type=int, default=0, help="전체 실행의 입력/작업자 재시작 예산 (0..20)")
+    parser.add_argument("--io-timeout", type=float, default=5, help="격리 영상 입력 열기/읽기 제한 초")
+    parser.add_argument("--isolate-input", action="store_true", help="녹화 파일도 별도 디코더로 처리; 라이브는 항상 격리")
+    parser.add_argument("--flush-every", type=int, default=1, help="JSONL flush 주기; 큰 값은 파일 출력 비용 감소")
+    parser.add_argument("--coordinates", type=Path, help="방향 추정용 카메라 투영 설정 JSON")
     args = parser.parse_args()
     config = json.loads(args.config.read_text(encoding="utf-8"))
     root = args.config.resolve().parent
     if args.profile:
+        config["engine"].pop("deployment", None)
         config["engine"].update(load_profile(args.profile))
     if args.source is not None:
         config["camera"]["source"] = args.source
@@ -136,75 +153,139 @@ def main():
     if args.imu_bind:
         config["imu"]["bind"] = args.imu_bind
     validate_config(config)
+    live = config["camera"]["live"]
+    if (not finite(args.start_ms) or args.start_ms < 0 or
+            (args.end_ms is not None and (not finite(args.end_ms) or args.end_ms <= args.start_ms)) or
+            not finite(args.speed) or args.speed <= 0 or not 1 <= args.repeat <= 100 or
+            args.flush_every < 1 or not finite(args.io_timeout) or args.io_timeout <= 0):
+        parser.error("잘못된 재생 구간, 배속, 반복, 출력 또는 시간 제한")
+    if live and (args.imu_log or args.detections or args.start_ms or args.end_ms is not None or args.repeat != 1):
+        parser.error("센서/탐지 재생과 구간 반복은 --recording에서만 사용하세요")
+    if args.imu_log and args.no_imu:
+        parser.error("--imu-log와 --no-imu는 함께 사용할 수 없습니다")
+    if args.cache_detections and (args.repeat != 1 or args.max_restarts or args.detections):
+        parser.error("탐지 캐시는 반복/재시작/기존 캐시 없이 생성하세요")
+    budget = Budget(args.max_restarts)
     if not config["camera"]["source"]:
         parser.error("--source로 S22 영상 입력 주소 또는 파일을 지정하세요")
-    if args.jsonl and (args.jsonl.exists() or not args.jsonl.parent.is_dir()):
-        parser.error("JSONL은 존재하는 폴더 안의 새 파일이어야 합니다")
-    engine, camera, imu, pipeline, output = None, None, NoImu(), None, None
-    try:
-        engine = create_engine(config["engine"], root)
-        verification = getattr(engine, "model_verification", None)
-        if verification and verification["status"] == "unverified":
-            print("모델 배포 검증 안 됨: 가중치 해시와 학습 클래스 순서 기록이 없습니다.", file=sys.stderr)
-        tracker = create_tracker(config["tracking"], config["engine"]["classes"],
-                                 config["engine"].get("class_change_policy", "allow"))
-        model = json.loads((root / config["imu"]["training_path"]).read_text(encoding="utf-8"))
-        pipeline = Pipeline(engine, tracker, DirectionClassifier(model), config["color_confidence"],
+    for target in (args.jsonl, args.cache_detections):
+        if target and (target.exists() or not target.parent.is_dir()):
+            parser.error("JSONL은 존재하는 폴더 안의 새 파일이어야 합니다")
+    if args.jsonl and args.cache_detections and args.jsonl.resolve() == args.cache_detections.resolve():
+        parser.error("탐지 캐시와 결과 파일을 분리하세요")
+    model = json.loads((root / config["imu"]["training_path"]).read_text(encoding="utf-8"))
+    replay = ImuReplay(args.imu_log, args.imu_offset_ms) if args.imu_log else None
+    detections = DetectionReplay(args.detections) if args.detections else None
+    coordinates = None
+    if args.coordinates:
+        from multidevice_app.coordinates import CoordinateAdapter
+        coordinates = CoordinateAdapter(model, json.loads(args.coordinates.read_text(encoding="utf-8")))
+    camera, imu, pipeline, output, cache = None, NoImu(), None, None, None
+    def pipeline_factory():
+        engine = detections if detections is not None else create_engine(config["engine"], root)
+        tracker = None
+        try:
+            if cache:
+                engine = CachingEngine(engine, cache)
+            verification = getattr(engine, "model_verification", None)
+            if verification and verification["status"] == "unverified":
+                print("모델 배포 검증 안 됨: 가중치 해시와 학습 클래스 순서 기록이 없습니다.", file=sys.stderr)
+            tracker = create_tracker(config["tracking"], config["engine"]["classes"],
+                                     config["engine"].get("class_change_policy", "allow"))
+            return Pipeline(engine, tracker, DirectionClassifier(model), config["color_confidence"],
                             config["reset_tracking_after_gap_ms"])
-        camera = OpenCVSource(config["camera"]["source"], config["camera"]["rotation_clockwise_deg"],
-                              recording=not config["camera"]["live"])
-        if config["imu"]["enabled"] and not args.no_imu and config["camera"]["live"]:
+        except Exception:
+            try:
+                engine.close()
+            finally:
+                close_tracker = getattr(tracker, "close", None)
+                if close_tracker:
+                    close_tracker()
+            raise
+    def source_factory():
+        if live or args.isolate_input:
+            from multidevice_app.video_worker import IsolatedSource
+            return IsolatedSource(config["camera"]["source"], config["camera"]["rotation_clockwise_deg"],
+                                  not live, args.io_timeout)
+        return OpenCVSource(config["camera"]["source"], config["camera"]["rotation_clockwise_deg"], recording=True)
+    try:
+        cache = args.cache_detections.open("x", encoding="utf-8") if args.cache_detections else None
+        pipeline = RecoveringPipeline(pipeline_factory, budget)
+        camera = RecoveringSource(source_factory, budget, live=live)
+        if config["imu"]["enabled"] and not args.no_imu and live:
             from multidevice_app.rust_host import WifiImu
             imu = WifiImu(config["imu"].get("bind", "0.0.0.0:8793"), root / config["imu"]["training_path"])
         imu.start()
         output = args.jsonl.open("x", encoding="utf-8") if args.jsonl else None
-        print("입력 대기 중. 종료: Q(영상 창) 또는 Ctrl+C", file=sys.stderr)
+        print("입력 대기 중. 종료: Q 또는 Ctrl+C, 미리보기 일시정지: Space", file=sys.stderr)
         processed = 0
+        replay_pass, generation, pass_frames = 0, 0, 0
         playback_session, playback_origin = None, None
         while True:
+            read_start = time.perf_counter()
             frame = camera.read()
-            if frame is None:
-                if not processed:
+            read_ms = (time.perf_counter() - read_start) * 1000
+            if frame is not None and frame.timestamp_ms < args.start_ms:
+                continue
+            if frame is None or (not live and args.end_ms is not None and frame.timestamp_ms >= args.end_ms):
+                if not pass_frames:
                     raise SetupError("읽을 수 있는 영상 프레임이 없습니다. S22 입력 주소나 파일을 확인하세요")
-                if config["camera"]["live"]:
-                    raise SetupError("실시간 영상 연결이 끊겼습니다. 입력 주소를 확인하고 다시 실행하세요")
+                if replay_pass + 1 < args.repeat:
+                    camera.close()
+                    pipeline.reset()
+                    camera = RecoveringSource(source_factory, budget)
+                    replay_pass += 1
+                    pass_frames, generation = 0, 0
+                    continue
                 break
-            packet = pipeline.process(frame, imu.snapshot(), attach_live_imu=config["camera"]["live"])
+            if camera.generation != generation:
+                pipeline.reset()
+                generation = camera.generation
+            state = replay.snapshot_at(frame.timestamp_ms) if replay else imu.snapshot()
+            packet = pipeline.process(frame, state, attach_live_imu=live or replay is not None)
+            packet["replay_pass"] = replay_pass
+            packet["input_read_ms"] = read_ms
+            if coordinates:
+                packet["coordinates"] = coordinates.record(packet, state)
             processed += 1
+            pass_frames += 1
             # This is arrival/decode association, explicitly NOT calibrated
             # exposure-time synchronization of S22 camera and board clocks.
-            packet["imu_alignment"] = "host_arrival_approximate" if config["camera"]["live"] else "unavailable"
-            line = json.dumps(packet, ensure_ascii=False, allow_nan=False)
+            packet["imu_alignment"] = "recorded_video_clock" if replay else ("host_arrival_approximate" if live else "unavailable")
             if output:
-                output.write(line + "\n")
-                output.flush()
+                output.write(json.dumps(packet, ensure_ascii=False, allow_nan=False) + "\n")
+                if processed % args.flush_every == 0:
+                    output.flush()
             elif not args.show:
-                print(line, flush=True)
+                print(json.dumps(packet, ensure_ascii=False, allow_nan=False), flush=True)
             if args.show:
                 import cv2
                 delay = 1
-                if not config["camera"]["live"]:
+                if not live:
                     # Pace file previews by video time; headless JSONL runs at full speed.
-                    now = time.monotonic() * 1000
+                    now = time.perf_counter() * 1000
                     if playback_session != packet["session_id"]:
-                        playback_session, playback_origin = packet["session_id"], now - frame.timestamp_ms
-                    delay = max(1, round(playback_origin + frame.timestamp_ms - now))
+                        playback_session, playback_origin = packet["session_id"], now - frame.timestamp_ms / args.speed
+                    delay = max(1, round(playback_origin + frame.timestamp_ms / args.speed - now))
                 cv2.imshow("Haneulmaru S22 + NU40", draw(frame, packet))
-                if cv2.waitKey(delay) & 0xff == ord("q"):
+                key = cv2.waitKey(min(delay, 2_147_483_647)) & 0xff
+                if key == ord(" "):
+                    paused = time.perf_counter()
+                    key = cv2.waitKey(0) & 0xff
+                    if playback_origin is not None:
+                        playback_origin += (time.perf_counter() - paused) * 1000
+                if key == ord("q"):
                     break
     finally:
-        imu.stop()
-        if camera:
-            camera.close()
-        if pipeline:
-            pipeline.close()
-        elif engine:
-            engine.close()
-        if output:
-            output.close()
-        if args.show and camera is not None:
-            import cv2
-            cv2.destroyAllWindows()
+        # Run every cleanup even if one worker fails to stop.
+        with ExitStack() as cleanup:
+            if args.show and camera is not None:
+                import cv2
+                cleanup.callback(cv2.destroyAllWindows)
+            for resource in (cache, output, pipeline, camera):
+                if resource is not None:
+                    cleanup.callback(resource.close)
+            cleanup.callback(imu.stop)
 
 
 if __name__ == "__main__":

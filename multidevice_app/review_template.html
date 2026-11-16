@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>하늘마루 · 기록 검토</title>
+<style>
+:root{color-scheme:dark;font:15px system-ui,sans-serif;background:#0c1420;color:#e8eef7}*{box-sizing:border-box}
+body{margin:0;padding:28px;max-width:1440px;margin:auto}header{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:22px}
+h1{font-size:27px;margin:5px 0}h2{font-size:16px;margin:0 0 14px}.muted{color:#9aacbf;font-size:13px}small{color:#57d9bd;letter-spacing:2px}
+main{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:18px}.panel{background:#131f2f;border:1px solid #28384b;border-radius:14px;padding:18px}
+.canvas-wrap{background:#080e17;display:flex;justify-content:center;border-radius:9px;overflow:hidden}canvas{max-width:100%;max-height:61vh;object-fit:contain}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:15px}button,select,input{font:inherit;border:1px solid #3b5066;background:#192a3e;color:inherit;border-radius:6px;padding:8px}
+button{cursor:pointer}button.primary{background:#65e1c4;color:#071a18;border:none;font-weight:700}input[type=range]{width:100%;padding:0;accent-color:#65e1c4}input[type=number]{width:80px}label{font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.stat{background:#0e1927;border-radius:8px;padding:12px}.stat strong{display:block;font-size:24px;margin:5px 0}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:10px 5px;text-align:left;border-bottom:1px solid #29394b}th{color:#9aacbf}tbody tr{cursor:pointer}tbody tr.selected{background:#243e50}
+#session{overflow-wrap:anywhere}#status{color:#8ee7ce;min-height:20px}#details{white-space:pre-wrap;overflow-wrap:anywhere;max-height:200px;overflow:auto;font:12px monospace;color:#b8c9da}
+@media(max-width:850px){body{padding:14px}main{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}}
+</style>
+<header><div><small>HANEULMARU / REVIEW</small><h1>영상과 추적 기록 검토</h1><div class="muted">기록된 결과를 프레임별로 확인합니다. 새 추론이나 실제 거리 측정은 수행하지 않습니다.</div></div>
+<label>같은 원본 영상 선택 <input id="videoFile" type="file" accept="video/*"></label></header>
+<main><section class="panel"><div class="canvas-wrap"><canvas id="canvas" width="960" height="600"></canvas></div>
+<div class="controls"><button id="play" class="primary">재생</button><button id="prev" aria-label="이전 프레임">←</button><button id="next" aria-label="다음 프레임">→</button>
+<select id="speed" aria-label="재생 배속"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+<label><input id="loop" type="checkbox"> 구간 반복</label><label>처음 <input id="from" type="number" value="1" min="1"></label><label>끝 <input id="to" type="number" min="1"></label></div>
+<p id="position" class="muted"></p><input id="seek" type="range" min="0" value="0" aria-label="프레임 이동"><p id="status"></p>
+<div class="muted">Space: 재생/정지 · ←/→: 프레임 이동 · 영상 파일은 브라우저 안에서만 읽습니다.</div></section>
+<aside class="panel"><h2>현재 관측</h2><div id="session" class="muted"></div><div class="stats"><div class="stat">객체<strong id="objects">0</strong></div><div class="stat">추론 ms<strong id="latency">—</strong></div><div class="stat">IMU<strong id="imu">—</strong></div></div>
+<label>클래스 <select id="classFilter"><option value="">전체</option></select></label><button id="clear">ID 선택 해제</button>
+<table><thead><tr><th>ID</th><th>클래스</th><th>신뢰도</th></tr></thead><tbody id="tracks"></tbody></table><p class="muted">ID를 선택하면 같은 세션의 최근 궤적을 표시합니다.</p>
+<h2>선택 프레임 상세</h2><pre id="details"></pre></aside></main>
+<video id="video" muted preload="auto" style="display:none"></video>
+<script id="frames" type="application/json">__FRAME_DATA__</script>
+<script>
+'use strict';
+const rows=JSON.parse(document.getElementById('frames').textContent),$=id=>document.getElementById(id);
+const c=$('canvas'),ctx=c.getContext('2d'),video=$('video');let index=0,playing=false,timer=null,selected=null,objectUrl=null;
+$('seek').max=rows.length-1;$('to').value=rows.length;$('from').max=rows.length;$('to').max=rows.length;
+for(const code of [...new Set(rows.flatMap(r=>r.tracks.map(t=>t.code)))].sort()){const opt=document.createElement('option');opt.value=opt.textContent=code;$('classFilter').append(opt)}
+function color(code){return ({R:'#ff7a8b',B:'#75aaff',G:'#69dfae',UNKNOWN:'#b8c2d0'})[code]||'#f5d083'}
+function visible(t){return (!$('classFilter').value||t.code===$('classFilter').value)&&(selected===null||t.id===selected)}
+function paint(){const row=rows[index],[w,h]=row.image_size_px;c.width=960;c.height=Math.round(960*h/w);const sx=c.width/w,sy=c.height/h;
+ctx.fillStyle='#080e17';ctx.fillRect(0,0,c.width,c.height);
+if(video.readyState>=2&&!video.seeking&&objectUrl&&Math.abs(video.currentTime-row.frame_timestamp_ms/1000)<.02&&video.videoWidth===w&&video.videoHeight===h)ctx.drawImage(video,0,0,c.width,c.height);
+else{ctx.strokeStyle='#162437';for(let x=0;x<c.width;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,c.height);ctx.stroke()}for(let y=0;y<c.height;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(c.width,y);ctx.stroke()}}
+if(selected!==null){ctx.strokeStyle='#f5d083';ctx.lineWidth=2;ctx.beginPath();let first=true;for(let j=Math.max(0,index-30);j<=index;j++){const old=rows[j];if(old.session_id!==row.session_id||old.replay_pass!==row.replay_pass)continue;const t=old.tracks.find(t=>t.id===selected);if(!t)continue;const [x1,y1,x2,y2]=t.xyxy,x=(x1+x2)/2*sx,y=(y1+y2)/2*sy;if(first){ctx.moveTo(x,y);first=false}else ctx.lineTo(x,y)}ctx.stroke()}
+for(const t of row.tracks.filter(visible)){const [x1,y1,x2,y2]=t.xyxy;ctx.strokeStyle=color(t.code);ctx.lineWidth=2;ctx.strokeRect(x1*sx,y1*sy,(x2-x1)*sx,(y2-y1)*sy);ctx.font='15px sans-serif';const label=`${t.display_name||t.code} · ${t.id??'pending'}`,tw=ctx.measureText(label).width;ctx.fillStyle='#07111ee8';ctx.fillRect(x1*sx,Math.max(0,y1*sy-22),tw+12,22);ctx.fillStyle=color(t.code);ctx.fillText(label,x1*sx+6,Math.max(16,y1*sy-6))}}
+function show(next){const old=rows[index];index=Math.max(0,Math.min(rows.length-1,next));const r=rows[index];if(old.session_id!==r.session_id||old.replay_pass!==r.replay_pass)selected=null;
+$('seek').value=index;$('position').textContent=`${index+1} / ${rows.length} · 프레임 ${r.frame_sequence} · ${(r.frame_timestamp_ms/1000).toFixed(3)}초 · 반복 ${(r.replay_pass||0)+1}`;
+$('session').textContent=`세션 ${r.session_id||'미지정'}`;$('objects').textContent=r.tracks.length;$('latency').textContent=Number.isFinite(r.engine?.inference_ms)?r.engine.inference_ms.toFixed(1):'—';$('imu').textContent=r.imu?.valid?(r.imu.direction||'idle'):'만료';
+$('details').textContent=JSON.stringify({imu:r.imu,alignment:r.imu_alignment,model:r.engine?.model_verification,recoveries:r.recovery_count,coordinates:r.coordinates},null,2);
+$('tracks').replaceChildren();for(const t of r.tracks.filter(t=>!$('classFilter').value||t.code===$('classFilter').value)){const tr=document.createElement('tr');if(t.id===selected)tr.className='selected';for(const value of [t.id??'pending',t.display_name||t.code,Number.isFinite(t.confidence)?(t.confidence*100).toFixed(0)+'%':'—']){const td=document.createElement('td');td.textContent=value;tr.append(td)}tr.onclick=()=>{selected=t.id??null;show(index)};$('tracks').append(tr)}
+$('status').textContent=objectUrl?(video.videoWidth&&video.videoWidth!==r.image_size_px[0]||video.videoHeight&&video.videoHeight!==r.image_size_px[1]?'영상 크기가 기록과 다릅니다. 원본 영상을 확인하세요.':'선택한 영상과 기록을 함께 표시합니다. 회전·편집하지 않은 원본을 사용하세요.'):'영상 없이 박스와 궤적을 표시하고 있습니다.';
+if(objectUrl&&Number.isFinite(r.frame_timestamp_ms))video.currentTime=r.frame_timestamp_ms/1000;paint()}
+function stop(){playing=false;clearTimeout(timer);$('play').textContent='재생'}
+function tick(){if(!playing)return;const first=Math.max(0,Number($('from').value)-1),last=Math.min(rows.length-1,Number($('to').value)-1);if(!Number.isInteger(first)||!Number.isInteger(last)||first>last){stop();$('status').textContent='반복 구간을 확인하세요.';return}let next=index+1;if(index<first||index>=last){if(index>=last&&!$('loop').checked){stop();return}next=first}const gap=next>index?Math.max(1,rows[next].frame_timestamp_ms-rows[index].frame_timestamp_ms):50;timer=setTimeout(()=>{show(next);tick()},Math.min(gap,5000)/Number($('speed').value))}
+$('play').onclick=()=>{if(playing){stop();return}playing=true;$('play').textContent='일시정지';tick()};$('prev').onclick=()=>{stop();show(index-1)};$('next').onclick=()=>{stop();show(index+1)};$('seek').oninput=()=>{stop();show(Number($('seek').value))};$('clear').onclick=()=>{selected=null;show(index)};$('classFilter').onchange=()=>show(index);
+$('videoFile').onchange=()=>{if(objectUrl)URL.revokeObjectURL(objectUrl);const file=$('videoFile').files[0];objectUrl=file?URL.createObjectURL(file):null;if(objectUrl)video.src=objectUrl;else{video.removeAttribute('src');video.load()}show(index)};video.onloadedmetadata=()=>show(index);video.onseeked=paint;video.onerror=()=>{$('status').textContent='브라우저에서 이 영상을 읽지 못했습니다. 박스와 궤적은 계속 검토할 수 있습니다.';paint()};
+document.addEventListener('keydown',e=>{if(['INPUT','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();$('play').click()}if(e.code==='ArrowLeft')$('prev').click();if(e.code==='ArrowRight')$('next').click()});show(0);
+</script></html>

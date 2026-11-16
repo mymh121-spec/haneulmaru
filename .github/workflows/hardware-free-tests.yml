@@ -4,10 +4,14 @@ on:
   push:
     paths:
       - 'multidevice_app/**'
+      - 'photo_color_v1/drone_coordinates.py'
+      - 'photo_color_v1/train_yolo_rgb.py'
       - '.github/workflows/hardware-free-tests.yml'
   pull_request:
     paths:
       - 'multidevice_app/**'
+      - 'photo_color_v1/drone_coordinates.py'
+      - 'photo_color_v1/train_yolo_rgb.py'
       - '.github/workflows/hardware-free-tests.yml'
   workflow_dispatch:
 
@@ -51,3 +55,5 @@ jobs:
                               'multidevice_app/bin/haneulmaru.exe')
       - name: Test pipes, retries, datasets and 48-frame AVI
         run: python -m unittest discover -s multidevice_app -t . -p "test_*.py" -v
+      - name: Test review controls with a mock DOM
+        run: node multidevice_app/test_review_ui.js
