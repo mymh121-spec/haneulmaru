@@ -32,11 +32,30 @@ cargo build --release --locked --manifest-path multidevice_app/local_llm/Cargo.t
 실행 명령과 모델 준비 모드는 [로컬 LLM 안내](multidevice_app/local_llm/README.md)를 따른다.
 가중치는 자동 다운로드하지 않는다. 실제 모델이 없어도 `--prepare-only`와 시험용 GGUF 테스트는 가능하다.
 
-## 2. 기존 영상·IMU와 웹 기능까지 사용하는 경우
+## 2. Rust 영상 입력과 실행 관리
+
+Python 없이 영상 입력부터 JSONL 출력까지 실행하는 `haneulmaru-video`를 추가했다.
+[빌드와 실행 안내](multidevice_app/native_video/README.md)에 Windows/Ubuntu 명령과 60fps 검증 방법이 있다.
+
+| 항목 | 빌드 | 실행 |
+|---|---|---|
+| Rust/Cargo, C++ 컴파일러 | 필수 | 불필요 |
+| Clang 실행 파일와 libclang | Rust OpenCV 바인딩 생성에 필요 | 불필요 |
+| OpenCV SDK/런타임 | 헤더와 라이브러리 필요 | 공유 라이브러리와 동영상 코덱 플러그인 필요 |
+| ONNX Runtime CPU DLL/SO | 기존 Rust 작업자 빌드에는 불필요 | 필수, `HANEULMARU_ORT_LIB`로 지정 |
+| 로컬 ONNX, 설정, Rust 실행 파일 두 개 | 테스트/실행 준비 | 필수 |
+| Python | Windows SDK 설치 보조 스크립트와 테스트에 사용 | Rust headless 경로에서는 불필요 |
+| Docker | 선택 | 필수 아님, 네이티브 실행 가능 |
+
+Windows 검증은 OpenCV 4.11.0 공식 SDK, libclang 18.1.1, clang 18.1.8을 사용했다.
+Ubuntu CI는 배포판의 OpenCV/Clang 개발 패키지를 설치한다. 가중치를 자동 다운로드하지 않는다.
+기존 미리보기, 녹화 IMU 재생, 좌표/데이터 도구는 아래 Python 환경을 계속 사용한다.
+
+## 3. 기존 영상·IMU와 웹 기능까지 사용하는 경우
 
 | 항목 | 필요한 기능 | 현재 기준 |
 |---|---|---|
-| Python과 venv/pip | 영상 입력, 실행 관리, 데이터 도구, 기존 웹 서버 | Python 3.11은 Windows/Ubuntu CI 검증, 로컬은 3.10.8 검증 |
+| Python과 venv/pip | 기존 미리보기 실행기, 데이터 도구, 기존 웹 서버 | Python 3.11은 Windows/Ubuntu CI 검증, 로컬은 3.10.8 검증 |
 | NumPy, OpenCV, PyYAML, Pillow, requests | 영상·데이터 도구 | [multidevice_app/requirements.txt](multidevice_app/requirements.txt)로 설치 |
 | ONNX Runtime CPU 네이티브 라이브러리 | Rust 영상 추론 | 회귀 검사는 `onnxruntime==1.23.2`. Rust가 DLL/SO를 직접 로드 |
 | Ultralytics와 lap | Python YOLO 추론·추적, 학습 | 선택 항목. `ultralytics==8.4.63`, `lap>=0.5.12,<0.6` |
@@ -63,7 +82,7 @@ $env:HANEULMARU_ORT_LIB = (Resolve-Path '.venv/Lib/site-packages/onnxruntime/cap
 Python YOLO 추론을 선택하면 [requirements-inference.txt](multidevice_app/requirements-inference.txt), 학습은 [requirements-yolo.txt](photo_color_v1/requirements-yolo.txt)를 추가로 사용한다.
 전체 검사 명령은 [하드웨어 없는 검증 안내](multidevice_app/HARDWARE_FREE_TESTING.md)에 있다.
 
-## 3. Docker와 GPU는 선택 항목
+## 4. Docker와 GPU는 선택 항목
 
 | 항목 | 필요한 경우 | 현재 적용 상태 |
 |---|---|---|
@@ -83,7 +102,7 @@ GGUF와 결과 JSONL은 읽기 전용 볼륨, 답변 저장 폴더는 쓰기 볼
 현재 LLM은 웹 서버가 아닌 CLI이므로 포트 공개가 필요하지 않다.
 카메라, USB, IMU UDP까지 컨테이너에 연결하는 작업은 별도 장치·네트워크 검증 대상이다.
 
-## 4. 메모리와 저장 공간
+## 5. 메모리와 저장 공간
 
 RAM과 VRAM 요구량은 사용할 GGUF의 모델 크기, 양자화, 컨텍스트 길이를 정한 뒤 산정한다.
 가중치 파일 크기만큼의 메모리만 있으면 충분한 것은 아니며 KV 캐시와 연산 버퍼의 여유가 필요하다.

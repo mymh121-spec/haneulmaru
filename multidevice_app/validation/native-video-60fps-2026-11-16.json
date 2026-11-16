@@ -1,0 +1,186 @@
+{
+  "date": "2026-11-16",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "runs": [
+    {
+      "schema_version": 1,
+      "frames": 600,
+      "dimensions": [
+        512,
+        512
+      ],
+      "source_fps": 60,
+      "max_fps": 0,
+      "functional_pass": true,
+      "sequence_gaps": 0,
+      "unexpected_session_resets": 0,
+      "reference_512": {
+        "fn": 0,
+        "fp": 0,
+        "id_switches": 0,
+        "matched_without_id": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 2385
+      },
+      "model": "synthetic-peaks-128-input",
+      "model_sha256": "12037497fabb747a5146e948c78afbafcbd07058980ee653e41a56404331c913",
+      "wall_seconds": 1.1606991000007838,
+      "startup_included_fps": 516.9298399555878,
+      "warmup_excluded_frames": 10,
+      "steady_output_fps": 627.0503350303155,
+      "steady_service_ms": {
+        "mean": 1.5712513559322008,
+        "p50": 1.5568,
+        "p95": 1.9023,
+        "p99": 2.0126,
+        "max": 2.1595999999999997
+      },
+      "steady_decode_ms": {
+        "mean": 0.5280649152542374,
+        "p50": 0.4914,
+        "p95": 0.7376,
+        "p99": 0.7964,
+        "max": 0.9348
+      },
+      "steady_pipeline_ms": {
+        "mean": 1.036386779661018,
+        "p50": 1.0491000000000001,
+        "p95": 1.2393,
+        "p99": 1.3386,
+        "max": 1.5012999999999999
+      },
+      "steady_over_16_67ms": 0,
+      "scope": "Rust OpenCV decode + Rust ONNX inference/tracking + Rust JSONL stdout; output FPS includes IPC/output and pacing; service excludes output serialization/write and pacing; no hardware, display, trained model or recorded IMU"
+    },
+    {
+      "schema_version": 1,
+      "frames": 600,
+      "dimensions": [
+        1280,
+        720
+      ],
+      "source_fps": 60,
+      "max_fps": 0,
+      "functional_pass": true,
+      "sequence_gaps": 0,
+      "unexpected_session_resets": 0,
+      "reference_512": null,
+      "model": "synthetic-peaks-128-input",
+      "model_sha256": "12037497fabb747a5146e948c78afbafcbd07058980ee653e41a56404331c913",
+      "wall_seconds": 3.329273600000306,
+      "startup_included_fps": 180.21949292480645,
+      "warmup_excluded_frames": 10,
+      "steady_output_fps": 193.8768244015105,
+      "steady_service_ms": {
+        "mean": 5.014679491525427,
+        "p50": 5.004,
+        "p95": 5.4588,
+        "p99": 5.738,
+        "max": 5.9008
+      },
+      "steady_decode_ms": {
+        "mean": 3.1211459322033908,
+        "p50": 3.1170999999999998,
+        "p95": 3.4375999999999998,
+        "p99": 3.5687,
+        "max": 3.7605999999999997
+      },
+      "steady_pipeline_ms": {
+        "mean": 1.8857874576271196,
+        "p50": 1.88,
+        "p95": 2.1738999999999997,
+        "p99": 2.3217,
+        "max": 2.4665
+      },
+      "steady_over_16_67ms": 0,
+      "scope": "Rust OpenCV decode + Rust ONNX inference/tracking + Rust JSONL stdout; output FPS includes IPC/output and pacing; service excludes output serialization/write and pacing; no hardware, display, trained model or recorded IMU"
+    },
+    {
+      "schema_version": 1,
+      "frames": 600,
+      "dimensions": [
+        1920,
+        1080
+      ],
+      "source_fps": 60,
+      "max_fps": 0,
+      "functional_pass": true,
+      "sequence_gaps": 0,
+      "unexpected_session_resets": 0,
+      "reference_512": null,
+      "model": "synthetic-peaks-128-input",
+      "model_sha256": "12037497fabb747a5146e948c78afbafcbd07058980ee653e41a56404331c913",
+      "wall_seconds": 6.116303400005563,
+      "startup_included_fps": 98.09846908501208,
+      "warmup_excluded_frames": 10,
+      "steady_output_fps": 102.22405940610201,
+      "steady_service_ms": {
+        "mean": 9.543267796610156,
+        "p50": 9.5002,
+        "p95": 10.3833,
+        "p99": 10.7819,
+        "max": 11.2756
+      },
+      "steady_decode_ms": {
+        "mean": 6.444005762711862,
+        "p50": 6.4282,
+        "p95": 7.1009,
+        "p99": 7.3358,
+        "max": 7.6651
+      },
+      "steady_pipeline_ms": {
+        "mean": 3.091640508474578,
+        "p50": 3.0737,
+        "p95": 3.4401,
+        "p99": 3.6938,
+        "max": 4.1166
+      },
+      "steady_over_16_67ms": 0,
+      "scope": "Rust OpenCV decode + Rust ONNX inference/tracking + Rust JSONL stdout; output FPS includes IPC/output and pacing; service excludes output serialization/write and pacing; no hardware, display, trained model or recorded IMU"
+    },
+    {
+      "schema_version": 1,
+      "frames": 600,
+      "dimensions": [
+        1920,
+        1080
+      ],
+      "source_fps": 60,
+      "max_fps": 60,
+      "functional_pass": true,
+      "sequence_gaps": 0,
+      "unexpected_session_resets": 0,
+      "reference_512": null,
+      "model": "synthetic-peaks-128-input",
+      "model_sha256": "12037497fabb747a5146e948c78afbafcbd07058980ee653e41a56404331c913",
+      "wall_seconds": 10.456326200001058,
+      "startup_included_fps": 57.38153042700019,
+      "warmup_excluded_frames": 10,
+      "steady_output_fps": 58.783468155900756,
+      "steady_service_ms": {
+        "mean": 9.097140169491542,
+        "p50": 9.1026,
+        "p95": 9.7553,
+        "p99": 10.061,
+        "max": 10.889299999999999
+      },
+      "steady_decode_ms": {
+        "mean": 5.996387627118645,
+        "p50": 5.9819,
+        "p95": 6.559200000000001,
+        "p99": 6.7462,
+        "max": 7.7608
+      },
+      "steady_pipeline_ms": {
+        "mean": 3.0917067796610125,
+        "p50": 3.0879000000000003,
+        "p95": 3.3829,
+        "p99": 3.5593999999999997,
+        "max": 3.7680000000000002
+      },
+      "steady_over_16_67ms": 0,
+      "scope": "Rust OpenCV decode + Rust ONNX inference/tracking + Rust JSONL stdout; output FPS includes IPC/output and pacing; service excludes output serialization/write and pacing; no hardware, display, trained model or recorded IMU"
+    }
+  ]
+}

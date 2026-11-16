@@ -19,6 +19,62 @@ permissions:
   contents: read
 
 jobs:
+  native-video:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            multidevice_app/rust
+            multidevice_app/native_video
+      - name: Install fixture and CPU runtime dependencies
+        run: python -m pip install -r multidevice_app/requirements.txt onnxruntime==1.23.2
+      - name: Install Linux video SDK
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libopencv-dev libclang-dev clang
+      - name: Install Windows video SDK
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & ./multidevice_app/native_video/windows-env.ps1 -Install
+          foreach ($name in @('OPENCV_LINK_LIBS','OPENCV_LINK_PATHS','OPENCV_INCLUDE_PATHS','LIBCLANG_PATH')) {
+            "$name=$([Environment]::GetEnvironmentVariable($name))" >> $env:GITHUB_ENV
+          }
+          (Resolve-Path '.native-deps/opencv/build/x64/vc16/bin').Path >> $env:GITHUB_PATH
+          $env:LIBCLANG_PATH >> $env:GITHUB_PATH
+          (Split-Path (Get-Command clang).Source) >> $env:GITHUB_PATH
+      - name: Build and test native workers
+        shell: python
+        run: |
+          import subprocess
+          for crate in ('rust', 'native_video'):
+              manifest = f'multidevice_app/{crate}/Cargo.toml'
+              subprocess.run(['cargo', 'test', '--release', '--locked', '--manifest-path', manifest, '-j', '2'], check=True)
+              subprocess.run(['cargo', 'build', '--release', '--locked', '--manifest-path', manifest, '-j', '2'], check=True)
+      - name: Test native host with 60 Hz video and process failures
+        shell: python
+        run: |
+          import os, shutil, subprocess
+          from pathlib import Path
+          import onnxruntime
+          capi = Path(onnxruntime.__file__).parent / 'capi'
+          pattern = 'onnxruntime.dll' if os.name == 'nt' else 'libonnxruntime.so*'
+          os.environ['HANEULMARU_ORT_LIB'] = str(next(capi.glob(pattern)).resolve())
+          suffix = '.exe' if os.name == 'nt' else ''
+          os.environ['HANEULMARU_NATIVE_VIDEO'] = str(Path(f'multidevice_app/native_video/target/release/haneulmaru-video{suffix}').resolve())
+          if os.name == 'nt':
+              shutil.copyfile('multidevice_app/rust/target/release/haneulmaru.exe', 'multidevice_app/bin/haneulmaru.exe')
+          subprocess.run(['python', '-m', 'unittest', 'multidevice_app.test_native_video', '-v'], check=True)
   local-llm:
     strategy:
       fail-fast: false
