@@ -105,6 +105,55 @@ class WorkerTests(unittest.TestCase):
                 hub.stop()
         self.assert_reaped()
 
+    def test_imu_coalesced_sync_and_samples_survive_reader_handoff(self):
+        program = '''import json,sys,time
+print(json.dumps(dict(event="ready",protocol_version=2,address="fixture")),flush=True)
+sys.stdin.buffer.readline()
+events=[dict(event="clock_synced")]
+for stamp in (1,2):
+    events.append(dict(event="sample",received_elapsed_ms=0,direction=None,rate_dps=0,similarity=None,
+        source="USB/Wi-Fi",session="fixture",sample=dict(t_ms=stamp,gx=0,gy=0,gz=0)))
+sys.stdout.buffer.write(('\\n'.join(json.dumps(e) for e in events)+'\\n').encode())
+sys.stdout.buffer.flush()
+time.sleep(30)
+'''
+        with self.spawn(program), patch("multidevice_app.rust_host.binary", return_value="fixture"):
+            hub = WifiImu(startup_timeout_s=2)
+            try:
+                hub.start()
+                deadline = time.monotonic()+1
+                while (hub.latest is None or hub.latest[1]["sample"]["t_ms"] != 2) and time.monotonic()<deadline:
+                    time.sleep(.005)
+                self.assertIsNotNone(hub.latest)
+                self.assertEqual(hub.latest[1]["sample"]["t_ms"], 2)
+                self.assertIs(hub.thread, hub.worker.thread)
+            finally:
+                hub.stop()
+            self.assertFalse(hub.thread.is_alive())
+        self.assert_reaped()
+
+    def test_combined_pipeline_frame_timeout_and_invalid_reply_reap_child(self):
+        from .rust_pipeline import RustPipeline
+        from unittest.mock import Mock
+        prefix = '''import json,sys,time
+r=sys.stdin.buffer
+r.readline()
+print('{"ready":true,"pipeline_protocol":1}',flush=True)
+h=json.loads(r.readline()); r.read(h['width']*h['height']*3)
+'''
+        for tail, message in (("time.sleep(30)", "response timeout"),
+                              ("print('{}',flush=True); time.sleep(30)", "Invalid Rust pipeline")):
+            with self.subTest(tail=tail), self.spawn(prefix+tail), patch("multidevice_app.rust_pipeline.binary", return_value="fixture"):
+                runner = RustPipeline(self.config, self.root, Mock())
+                start = time.monotonic()
+                try:
+                    with self.assertRaisesRegex(SetupError, message):
+                        runner.process(Frame(1, 0, np.zeros((32,32,3),np.uint8)), {}, False)
+                    self.assertLess(time.monotonic()-start, 1.8)
+                finally:
+                    runner.close()
+            self.assert_reaped()
+
     def test_legacy_imu_worker_is_rejected_instead_of_refreshing_timestamps(self):
         with self.spawn("import time; print('{\"event\":\"ready\"}'); time.sleep(30)"), patch(
             "multidevice_app.rust_host.binary", return_value="fixture"

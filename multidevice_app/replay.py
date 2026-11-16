@@ -134,12 +134,17 @@ class CachingEngine:
 
     def detect(self, frame):
         hits = self.engine.detect(frame)
-        self.stream.write(json.dumps(dict(frame_sequence=frame.sequence, frame_timestamp_ms=frame.timestamp_ms,
-            image_size_px=list(frame.image.shape[1::-1]), frame_sha256=hashlib.sha256(frame.image.tobytes()).hexdigest(),
-            source_model_verification=getattr(self.engine, "model_verification", {"status": "unverified"}),
-            display_names=getattr(self.engine, "display_names", {}), detections=[d.packet() for d in hits]),
-            ensure_ascii=False, allow_nan=False) + "\n")
+        write_cached_detections(self.stream, frame, [d.packet() for d in hits],
+                               getattr(self.engine, "model_verification", {"status": "unverified"}),
+                               getattr(self.engine, "display_names", {}))
         return hits
 
     def close(self):
         self.engine.close()
+
+
+def write_cached_detections(stream, frame, detections, verification, aliases):
+    stream.write(json.dumps(dict(frame_sequence=frame.sequence, frame_timestamp_ms=frame.timestamp_ms,
+        image_size_px=list(frame.image.shape[1::-1]), frame_sha256=hashlib.sha256(frame.image.tobytes()).hexdigest(),
+        source_model_verification=verification, display_names=aliases, detections=detections),
+        ensure_ascii=False, allow_nan=False) + "\n")

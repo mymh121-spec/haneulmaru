@@ -17,6 +17,7 @@ Linux 또는 시스템 ONNX Runtime이 없는 Windows에서는 `HANEULMARU_ORT_L
 절대 경로를 지정합니다. Windows는 기존 `multidevice_app/bin/haneulmaru.exe`를 우선 사용합니다.
 소스 빌드를 검증하려면 빌드한 `rust/target/release/haneulmaru.exe`로 해당 파일을 교체합니다.
 CI는 Windows와 Linux에서 소스를 빌드한 뒤 테스트합니다.
+기본 Rust 탐지+추적 통합 경로와 오프라인 Rust 평가도 이 빌드로 검사합니다.
 저장소의 Windows 실행 파일도 새 IMU 프로토콜과 strict 추적 정책을 지원하는 빌드로 갱신했습니다.
 
 ONNX Runtime 없이도 변경된 오류 처리와 데이터 검사는 실행할 수 있습니다.
@@ -37,6 +38,8 @@ python -m unittest multidevice_app.test_worker multidevice_app.test_pipeline mul
   프레임 번호, 시간, 클래스, 박스, ID와 비교합니다. OpenCV가 없으면 이 검사만 건너뜁니다.
 - 모델 해시/클래스 순서 변경을 작업자 시작 전에 거부하고, 표시 별칭을 바꿔도 위 177건이 유지되는지 검사합니다.
 - Rust 추적기의 strict/allow 정책에서 클래스 교체, 낮은 신뢰도, UNKNOWN, 색상 깜빡임을 검사합니다.
+- 동기화 응답과 IMU 샘플을 같은 쓰기에 묶어 보내 첫 샘플이 버퍼 전환에서 사라지지 않는지 검사합니다.
+- 통합 Rust 파이프라인의 48프레임 결과와 세션/복구를 기존 경로에 대조하고, Rust 평가를 보존한 Python 기준 구현과 대조합니다.
 - 로컬 UDP로 실제 Rust IMU 작업자에 데이터를 보내 Python 읽기를 600ms 지연시킵니다.
   오래된 값이 되살아나지 않는지와 다음 새 패킷의 복구를 검사합니다. 루프백 UDP 허용이 필요합니다.
 

@@ -104,12 +104,12 @@ class WifiImu:
         except Exception:
             self.stop()
             raise
-        self.thread = threading.Thread(target=self._read, daemon=True)
-        self.thread.start()
+        self.thread = self.worker.start_stream(self._read)
 
     def _read(self):
         try:
-            for line in self.proc.stdout:
+            while True:
+                line = self.worker.readline()
                 event = json.loads(line)
                 self._accept_event(event)
         except (OSError, ValueError):

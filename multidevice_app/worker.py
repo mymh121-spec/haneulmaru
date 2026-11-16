@@ -43,11 +43,7 @@ class PipeWorker:
                         raise OSError("closed input pipe")
                     remaining = remaining[written:]
                 phase[0] = "response"
-                line = self.reader.readline(self.max_response_bytes + 1)
-                if not line:
-                    raise OSError("closed output pipe")
-                if len(line) > self.max_response_bytes or not line.endswith(b"\n"):
-                    raise OSError("invalid or oversized response line")
+                line = self.readline()
                 result.append(line)
             except Exception as exc:
                 result.append(exc)
@@ -74,6 +70,27 @@ class PipeWorker:
             self.close(deadline=deadline)
             raise SetupError(f"{stage}: {failed_phase} failed; worker disconnected") from result[0]
         return result[0]
+
+    def readline(self):
+        """Every consumer must use this buffer, including post-handshake streams."""
+        line = self.reader.readline(self.max_response_bytes + 1)
+        if not line:
+            raise OSError("closed output pipe")
+        if len(line) > self.max_response_bytes or not line.endswith(b"\n"):
+            raise OSError("invalid or oversized response line")
+        return line
+
+    def start_stream(self, consumer):
+        """Transfer reader ownership after the final exchange; close joins it."""
+        if self.closed:
+            raise SetupError("Cannot stream from a closed worker")
+        if self.thread:
+            self.thread.join(timeout=1)
+            if self.thread.is_alive():
+                raise SetupError("Worker exchange is still active")
+        self.thread = threading.Thread(target=consumer, daemon=True, name="haneulmaru-worker-stream")
+        self.thread.start()
+        return self.thread
 
     def close(self, *, deadline=None):
         if self.closed and self.proc.stdin.closed and self.proc.stdout.closed:

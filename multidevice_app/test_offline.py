@@ -256,6 +256,7 @@ class OfflineIntegrationTests(TemporaryTest):
                      "--cache-detections", cache, "--jsonl", output, "--flush-every", 16)
         rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
         self.assertEqual(len(rows), 48)
+        self.assertTrue(all(row["pipeline_backend"] == "rust" for row in rows))
         self.assertTrue(all(row["imu"]["valid"] for row in rows))
         self.assertTrue(all(row["coordinates"]["camera_pose"]["valid"] for row in rows))
         evaluation = self.root/"evaluation.json"

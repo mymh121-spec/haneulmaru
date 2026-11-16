@@ -182,6 +182,13 @@ def main():
         coordinates = CoordinateAdapter(model, json.loads(args.coordinates.read_text(encoding="utf-8")))
     camera, imu, pipeline, output, cache = None, NoImu(), None, None, None
     def pipeline_factory():
+        if config["engine"]["name"] == "rust" and config["tracking"] == "rust" and detections is None:
+            from multidevice_app.rust_pipeline import RustPipeline
+            runner = RustPipeline(config["engine"], root, DirectionClassifier(model), config["color_confidence"],
+                                  config["reset_tracking_after_gap_ms"], cache)
+            if runner.verification["status"] == "unverified":
+                print("모델 배포 검증 안 됨: 가중치 해시와 학습 클래스 순서 기록이 없습니다.", file=sys.stderr)
+            return runner
         engine = detections if detections is not None else create_engine(config["engine"], root)
         tracker = None
         try:

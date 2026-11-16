@@ -55,10 +55,10 @@ impl Fit {
     }
 }
 #[derive(Serialize, Debug)]
-struct Detection<'a> {
-    code: &'a str,
-    confidence: f32,
-    xyxy: [f32; 4],
+pub(crate) struct Detection<'a> {
+    pub(crate) code: &'a str,
+    pub(crate) confidence: f32,
+    pub(crate) xyxy: [f32; 4],
 }
 pub(crate) fn overlap(a: [f32; 4], b: [f32; 4]) -> f32 {
     let intersection =
@@ -75,7 +75,7 @@ enum Layout {
 }
 
 #[derive(Deserialize)]
-struct DetectorSpec {
+pub(crate) struct DetectorSpec {
     classes: Vec<String>,
     output_layout: Layout,
     agnostic_nms: bool,
@@ -201,17 +201,53 @@ fn probability(value: f32) -> Result<f32> {
     }
 }
 
-pub fn worker(args: &[String], read_profile: bool) -> Result<()> {
-    let size = args[1].parse::<usize>()?;
-    let conf = args[2].parse::<f32>()?;
-    let iou = args[3].parse::<f32>()?;
-    if !(32..=2048).contains(&size)
-        || size % 32 != 0
-        || !(0.0..=1.0).contains(&conf)
-        || !(0.0..=1.0).contains(&iou)
-    {
-        return Err("Invalid detector configuration".into());
+pub(crate) struct Detector {
+    session: Session,
+    spec: DetectorSpec,
+    size: usize,
+    conf: f32,
+    iou: f32,
+}
+impl Detector {
+    pub(crate) fn load(args: &[String], spec: DetectorSpec) -> Result<Self> {
+        let size = args[1].parse::<usize>()?;
+        let conf = args[2].parse::<f32>()?;
+        let iou = args[3].parse::<f32>()?;
+        if !(32..=2048).contains(&size)
+            || size % 32 != 0
+            || !(0.0..=1.).contains(&conf)
+            || !(0.0..=1.).contains(&iou)
+            || spec.classes.is_empty()
+            || spec
+                .classes
+                .iter()
+                .any(|s| s.trim().is_empty() || s == "UNKNOWN")
+        {
+            return Err("Invalid detector configuration".into());
+        }
+        Ok(Self {
+            session: Session::load(&args[0], &args[4], &args[5])?,
+            spec,
+            size,
+            conf,
+            iou,
+        })
     }
+    pub(crate) fn detect(&self, w: usize, h: usize, bgr: &[u8]) -> Result<Vec<Detection<'_>>> {
+        let fit = Fit::new(w, h, self.size);
+        let (shape, data) = self
+            .session
+            .run(&mut fit.input(bgr, self.size), self.size)?;
+        self.spec.decode(&fit, shape, &data, self.conf, self.iou)
+    }
+}
+pub(crate) fn frame_bytes(w: usize, h: usize) -> Result<usize> {
+    w.checked_mul(h)
+        .and_then(|n| n.checked_mul(3))
+        .filter(|n| *n > 0 && *n <= 64 * 1024 * 1024)
+        .ok_or_else(|| "Invalid frame dimensions".into())
+}
+pub fn worker(args: &[String], read_profile: bool) -> Result<()> {
     let mut input = io::stdin().lock();
     let spec = if read_profile {
         let mut line = String::new();
@@ -220,18 +256,11 @@ pub fn worker(args: &[String], read_profile: bool) -> Result<()> {
     } else {
         DetectorSpec::legacy()
     };
-    if spec.classes.is_empty()
-        || spec
-            .classes
-            .iter()
-            .any(|s| s.trim().is_empty() || s == "UNKNOWN")
-    {
-        return Err("Invalid profile classes".into());
-    }
-    let session = Session::load(&args[0], &args[4], &args[5])?;
+    let detector = Detector::load(args, spec)?;
     let mut out = io::stdout().lock();
     writeln!(out, "ready")?;
     out.flush()?;
+    let mut bgr = Vec::new();
     loop {
         let mut header = [0u8; 8];
         if input.read(&mut header[..1])? == 0 {
@@ -240,16 +269,9 @@ pub fn worker(args: &[String], read_profile: bool) -> Result<()> {
         input.read_exact(&mut header[1..])?;
         let w = u32::from_le_bytes(header[..4].try_into()?) as usize;
         let h = u32::from_le_bytes(header[4..].try_into()?) as usize;
-        let bytes = w
-            .checked_mul(h)
-            .and_then(|n| n.checked_mul(3))
-            .filter(|n| *n > 0 && *n <= 64 * 1024 * 1024)
-            .ok_or("Invalid frame dimensions")?;
-        let mut bgr = vec![0; bytes];
+        bgr.resize(frame_bytes(w, h)?, 0);
         input.read_exact(&mut bgr)?;
-        let fit = Fit::new(w, h, size);
-        let (shape, data) = session.run(&mut fit.input(&bgr, size), size)?;
-        serde_json::to_writer(&mut out, &spec.decode(&fit, shape, &data, conf, iou)?)?;
+        serde_json::to_writer(&mut out, &detector.detect(w, h, &bgr)?)?;
         writeln!(out)?;
         out.flush()?;
     }
