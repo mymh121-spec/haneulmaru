@@ -24,14 +24,15 @@ Windows PowerShell:
 ```powershell
 # 먼저 Visual Studio C++ Build Tools, Rust, LLVM을 설치한다.
 # -Install은 OpenCV 4.11.0 공식 SDK를 해시 검증 후 내려받고,
-# Python/pip로 libclang 18.1.1 빌드 라이브러리를 .native-deps에 설치한다.
+# 설치된 LLVM의 clang.exe와 libclang.dll을 함께 사용한다.
+# LLVM 18 부분 설치본에 DLL이 없을 때만 Python/pip로 libclang 18.1.1을 보완한다.
 # clang.exe 자체는 LLVM 설치본 또는 PATH에 있어야 한다.
 & ./multidevice_app/native_video/windows-env.ps1 -Install
 cargo build --release --locked --manifest-path multidevice_app/rust/Cargo.toml
 cargo build --release --locked --manifest-path multidevice_app/native_video/Cargo.toml
 ```
 
-이미 SDK를 준비했다면 새 터미널마다 `windows-env.ps1`을 `-Install` 없이 실행한다. 스크립트 대신 `OPENCV_INCLUDE_PATHS`, `OPENCV_LINK_PATHS`, `OPENCV_LINK_LIBS`, `LIBCLANG_PATH`와 `PATH`를 직접 지정해도 된다. 빌드용 `.native-deps`와 `target`은 Git에 올리지 않는다.
+이미 SDK를 준비했다면 새 터미널마다 `windows-env.ps1`을 `-Install` 없이 실행한다. Clang 실행 파일과 libclang의 주 버전을 맞춰야 한다. Windows CI의 LLVM 20과 로컬 LLVM 18처럼 설치 환경이 달라도 해당 LLVM의 라이브러리를 우선 선택한다. 스크립트 대신 `OPENCV_INCLUDE_PATHS`, `OPENCV_LINK_PATHS`, `OPENCV_LINK_LIBS`, `LIBCLANG_PATH`와 `PATH`를 직접 지정해도 된다. 빌드용 `.native-deps`와 `target`은 Git에 올리지 않는다.
 
 Ubuntu:
 
