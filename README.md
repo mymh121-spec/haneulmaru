@@ -1,5 +1,7 @@
 # 하늘마루 · Haneulmaru
 
+- [필요 프로그램, 모델 파일, Docker·GPU 선택 구성](ENVIRONMENT.md)
+
 ## PC Rust 연산과 S22 USB 중계
 
 NU40은 S22에 USB로 연결하고 S22가 같은 Wi-Fi·핫스팟의 PC로 센서값을 보냅니다. Windows에서 센서만 실행하려면 `NU40_수신.cmd`를 엽니다. S22에는 `Haneulmaru-USB.apk`를 설치합니다. 기존 웹 데모와 영상 인식 실행 경로도 같은 Rust 수신기를 사용합니다.
